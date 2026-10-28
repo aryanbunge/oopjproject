@@ -2,103 +2,93 @@
 
 ## Project overview
 
-This Java console application gets a five-day weather forecast from the OpenWeatherMap API and checks it for unusual weather. It groups the provider's three-hour forecast readings into daily summaries, applies simple rules, and prints an explanation for each flagged day. A CSV option is also included for offline demonstrations.
+A beginner-friendly Java mini project that uses **Spring Boot**, a REST API, the OpenWeatherMap forecast API, and an **H2 database**. The app fetches a five-day forecast for a city, groups forecast readings into daily summaries, applies explainable anomaly rules, saves the analysis, and returns JSON.
 
-The project is intended for learning OOP and API use. Its thresholds are examples, not official weather warnings or a scientific climate model.
+The rules are examples for a college project. They are not official weather warnings or a scientific climate model.
 
-## Features
+## What it does
 
-- Looks up a place by city name, then fetches its five-day forecast using an API key.
-- Reads the key from the `OPENWEATHER_API_KEY` environment variable; it is not saved in the source code.
-- Checks for high or low temperatures, heavy rainfall, strong wind, and sudden daily temperature changes.
-- Prints the daily readings, anomaly explanations, and a summary.
-- Can also read the included CSV sample or a CSV file of your own.
+- **Spring Boot REST service:** exposes endpoints at `http://localhost:8080`.
+- **Weather API:** resolves a city and retrieves its five-day, three-hour forecast from OpenWeatherMap.
+- **Anomaly detection:** flags high/low temperature, heavy rainfall, strong winds, and sudden daily temperature changes.
+- **Database:** stores each analyzed daily summary and anomaly result in a local file-backed H2 database.
+- **API key safety:** reads `OPENWEATHER_API_KEY` from the environment; no real key is committed.
 
 ## OOP concepts
 
-- **Encapsulation:** `WeatherRecord` and `Anomaly` keep their fields private and expose getters.
-- **Abstraction:** `OpenWeatherMapForecastReader` handles API access and response parsing; `CsvWeatherDataReader` handles CSV input; `AnomalyDetector` applies rules; `ReportPrinter` displays results.
-- **Composition:** `DetectionResult` contains a weather record and any anomalies found for it.
-- **Object collaboration:** the main class coordinates input, detection, and reporting objects.
+- **Encapsulation:** `WeatherRecord`, `Anomaly`, and `WeatherObservation` keep their data in objects.
+- **Abstraction:** the forecast reader, analysis service, repository, and controller each have a specific job.
+- **Composition:** each detection result combines weather data with any anomalies found.
+- **Dependency injection:** Spring provides the repository to the service and the service to the controller.
+- **Persistence:** `WeatherObservationRepository` uses Spring Data JPA to save and retrieve entity objects.
 
 ## Requirements
 
-- Java 11 or newer (Java 11 includes the HTTP client used by the project).
-- An OpenWeatherMap account and API key for live forecast mode. API key activation and provider limits are controlled by OpenWeatherMap.
-- Internet access for live forecast mode.
-- No extra Java libraries.
+- JDK 17 or newer.
+- Internet access on first build so the Maven Wrapper can download Maven and project dependencies.
+- Internet access and an OpenWeatherMap API key for live analysis.
 
-## Compile
+## Run on Windows PowerShell
 
-Open PowerShell in the project folder and compile the Java source files:
-
-```powershell
-javac -d out src\main\java\weather\*.java
-```
-
-If `javac` is not on PATH but you use the Java runtime bundled with Minecraft Launcher, you can use its compiler directly:
-
-```powershell
-$javaBin = "$env:APPDATA\.minecraft\runtime\java-runtime-epsilon\windows\java-runtime-epsilon\bin"
-& "$javaBin\javac.exe" -d out src\main\java\weather\*.java
-```
-
-## Run with live API data
-
-Set your own OpenWeatherMap API key in the current PowerShell window. Replace the example text with your key; do not share it or add it to a project file:
+Open PowerShell in the project folder. Set your key in that terminal session (replace the example text with your own key):
 
 ```powershell
 $env:OPENWEATHER_API_KEY = "paste-your-api-key-here"
 ```
 
-Then run the app. Replace `London,GB` with your city and two-letter country code when useful:
+Build and start the app with the included Maven Wrapper (Maven does not need to be installed separately):
 
 ```powershell
-java -cp out weather.WeatherAnomalyDetectionSystem London,GB
+.\mvnw.cmd spring-boot:run
 ```
 
-If you use Minecraft's bundled Java, run it this way instead:
+On macOS or Linux, use `./mvnw spring-boot:run`. You can also open the project in IntelliJ IDEA, let it import `pom.xml`, then run `WeatherAnomalyDetectionSystem`. Keep the environment variable set in the IDE's run configuration.
+
+## API endpoints
+
+### Analyze a city
+
+```text
+GET http://localhost:8080/api/weather/analyze?city=London,GB
+```
+
+Fetches a new forecast, applies detection rules, stores each daily summary in H2, and returns the saved rows as JSON.
+
+### View saved analyses
+
+```text
+GET http://localhost:8080/api/weather/history?city=London,GB
+```
+
+Returns analyses already stored for the city without calling the weather provider. The H2 database files are created in `data/` and excluded from Git.
+
+You can open either URL in a browser while the app is running, or call it with PowerShell:
 
 ```powershell
-& "$javaBin\java.exe" -cp out weather.WeatherAnomalyDetectionSystem London,GB
+Invoke-RestMethod "http://localhost:8080/api/weather/analyze?city=London,GB"
+Invoke-RestMethod "http://localhost:8080/api/weather/history?city=London,GB"
 ```
-
-If you omit the city, the program asks for it. The app uses OpenWeatherMap's geocoding endpoint to find the city's coordinates, then requests the five-day, three-hour forecast in metric units. The provider returns forecast conditions, not historical observations; this project therefore checks unusual forecast values and changes between forecast days.
-
-## Run with CSV data (offline)
-
-```powershell
-java -cp out weather.WeatherAnomalyDetectionSystem --csv data\sample-weather.csv
-```
-
-For another CSV, replace the sample path with the path to your file.
-
-## CSV format
-
-The first row may be a header. Columns must be in this order, with dates written as `YYYY-MM-DD`:
-
-```csv
-date,temperature,rainfall,windSpeed
-2026-06-01,29.0,4.0,12.0
-```
-
-Values use Celsius, millimetres, and kilometres per hour.
 
 ## Detection rules
 
-| Measurement | Rule |
+| Measurement | Example rule |
 |---|---|
 | Temperature | Daily average above 40°C or below 0°C |
 | Rainfall | Daily total above 100 mm |
 | Wind speed | Daily maximum above 80 km/h |
 | Temperature change | Daily average changes by more than 10°C from the previous calendar day |
 
-These example values are set in `WeatherAnomalyDetectionSystem.java`; adjust them for your chosen location and project needs. The first forecast day may cover only part of a day, because forecasts begin from the current time. Daily dates are grouped in UTC.
+Change the thresholds in `WeatherAnalysisService.java` to fit the project demonstration. Forecast day grouping uses UTC. The first day may contain only a partial day because the forecast begins from the current time.
+
+## Database
+
+The project uses H2 in embedded file mode. The table is created and updated from the `WeatherObservation` entity. Local files are named `data/weatherdb.mv.db` and are ignored by Git, so each teammate gets their own local database.
 
 ## Project structure
 
 ```text
 ├── data/sample-weather.csv
+├── pom.xml
 ├── src/main/java/weather/
 │   ├── Anomaly.java
 │   ├── AnomalyDetector.java
@@ -106,15 +96,19 @@ These example values are set in `WeatherAnomalyDetectionSystem.java`; adjust the
 │   ├── DetectionResult.java
 │   ├── OpenWeatherMapForecastReader.java
 │   ├── ReportPrinter.java
+│   ├── WeatherAnalysisService.java
 │   ├── WeatherAnomalyDetectionSystem.java
+│   ├── WeatherController.java
+│   ├── WeatherObservation.java
+│   ├── WeatherObservationRepository.java
 │   └── WeatherRecord.java
-└── README.md
+└── src/main/resources/application.properties
 ```
 
 ## Mini-project report outline
 
-1. **Problem statement:** Manually reviewing weather readings makes it harder to spot unusual values.
-2. **Objective:** Retrieve forecast readings from an API and report values outside selected limits.
-3. **Method:** Request a forecast using an API key, convert forecast entries into daily weather objects, apply threshold and day-to-day rules, and print a report.
-4. **Limitations:** Fixed thresholds can produce false alarms; forecasts are estimates and this version does not compare against long-term local climate data.
-5. **Future improvements:** Add location-specific thresholds, historical datasets, charts, a graphical interface, and saved reports.
+1. **Problem:** Manually reviewing many weather readings makes unusual values hard to notice.
+2. **Objective:** Retrieve forecast data, identify readings outside selected limits, and persist the report.
+3. **Method:** The REST controller calls the service; the service fetches data, runs rules, and saves results using a JPA repository backed by H2.
+4. **Limitations:** Fixed thresholds can create false alarms, and forecast values are estimates rather than historical local climate baselines.
+5. **Future improvements:** Add a web dashboard, user-configurable limits, historical climate comparisons, and a production database such as PostgreSQL.
