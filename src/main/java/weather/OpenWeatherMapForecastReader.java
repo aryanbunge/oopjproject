@@ -36,6 +36,109 @@ public class OpenWeatherMapForecastReader {
         return parseForecast(get(forecastUrl));
     }
 
+    /** Downloads real-time current weather observation for the given city. */
+    public CurrentWeather readCurrentWeather(String city, String apiKey) throws IOException {
+        String encodedCity = URLEncoder.encode(city.trim(), StandardCharsets.UTF_8);
+        String encodedKey = URLEncoder.encode(apiKey.trim(), StandardCharsets.UTF_8);
+        String url = "https://api.openweathermap.org/data/2.5/weather?q=" + encodedCity
+                + "&units=metric&appid=" + encodedKey;
+        String json = get(url);
+        return parseCurrentWeather(json);
+    }
+
+    /** Geocoding API: searches matching cities for autocomplete. */
+    public List<Map<String, String>> searchCities(String query, String apiKey) {
+        List<Map<String, String>> results = new ArrayList<>();
+        if (query == null || query.trim().isEmpty()) {
+            return results;
+        }
+        try {
+            String encodedQuery = URLEncoder.encode(query.trim(), StandardCharsets.UTF_8);
+            String encodedKey = URLEncoder.encode(apiKey.trim(), StandardCharsets.UTF_8);
+            String url = "https://api.openweathermap.org/geo/1.0/direct?q=" + encodedQuery
+                    + "&limit=6&appid=" + encodedKey;
+            String json = get(url);
+            int arrayStart = json.indexOf('[');
+            int arrayEnd = json.lastIndexOf(']');
+            if (arrayStart >= 0 && arrayEnd > arrayStart) {
+                int pos = arrayStart + 1;
+                while (pos < arrayEnd) {
+                    int objStart = json.indexOf('{', pos);
+                    if (objStart < 0 || objStart >= arrayEnd) break;
+                    int objEnd = findObjectEnd(json, objStart);
+                    if (objEnd < 0 || objEnd > arrayEnd) break;
+                    String item = json.substring(objStart, objEnd + 1);
+                    String name = stringValue(item, "name");
+                    String country = stringValue(item, "country");
+                    String state = stringValue(item, "state");
+                    if (name != null && !name.isBlank()) {
+                        Map<String, String> city = new LinkedHashMap<>();
+                        city.put("name", name);
+                        city.put("country", country != null ? country : "");
+                        city.put("state", state != null ? state : "");
+                        String display = name + (state != null && !state.isBlank() ? ", " + state : "") + (country != null && !country.isBlank() ? ", " + country : "");
+                        city.put("displayName", display);
+                        String queryVal = name + (country != null && !country.isBlank() ? "," + country : "");
+                        city.put("queryValue", queryVal);
+                        results.add(city);
+                    }
+                    pos = objEnd + 1;
+                }
+            }
+        } catch (Exception ignored) {
+            // Geocoding failure falls back gracefully
+        }
+        return results;
+    }
+
+    private CurrentWeather parseCurrentWeather(String json) throws IOException {
+        String name = stringValue(json, "name");
+        if (name == null) name = "Unknown Station";
+
+        String sysObj = objectValue(json, "sys");
+        String country = sysObj != null ? stringValue(sysObj, "country") : "";
+
+        String mainObj = objectValue(json, "main");
+        if (mainObj == null) {
+            throw new IOException("The weather API response did not contain main metrics.");
+        }
+        double temp = numberValue(mainObj, "temp", true);
+        double feelsLike = numberValue(mainObj, "feels_like", false);
+        double tempMin = numberValue(mainObj, "temp_min", false);
+        double tempMax = numberValue(mainObj, "temp_max", false);
+        double humidity = numberValue(mainObj, "humidity", false);
+        double pressure = numberValue(mainObj, "pressure", false);
+
+        String windObj = objectValue(json, "wind");
+        double windSpeedMs = windObj != null ? numberValue(windObj, "speed", false) : 0.0;
+        double windSpeedKmh = windSpeedMs * 3.6;
+        int windDeg = windObj != null ? (int) numberValue(windObj, "deg", false) : 0;
+
+        String condition = "Clear";
+        String description = "clear sky";
+        String icon = "01d";
+        int weatherIdx = json.indexOf("\"weather\"");
+        if (weatherIdx >= 0) {
+            int openBracket = json.indexOf('[', weatherIdx);
+            int closeBracket = openBracket >= 0 ? json.indexOf(']', openBracket) : -1;
+            if (openBracket >= 0 && closeBracket > openBracket) {
+                String weatherItem = json.substring(openBracket + 1, closeBracket);
+                String cond = stringValue(weatherItem, "main");
+                if (cond != null) condition = cond;
+                String desc = stringValue(weatherItem, "description");
+                if (desc != null) description = desc;
+                String ic = stringValue(weatherItem, "icon");
+                if (ic != null) icon = ic;
+            }
+        }
+
+        long dt = (long) numberValue(json, "dt", false);
+        Instant timestamp = dt > 0 ? Instant.ofEpochSecond(dt) : Instant.now();
+
+        return new CurrentWeather(name, country, temp, feelsLike, tempMin, tempMax,
+                humidity, windSpeedKmh, windDeg, pressure, condition, description, icon, timestamp);
+    }
+
     private String get(String url) throws IOException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
         final HttpResponse<String> response;

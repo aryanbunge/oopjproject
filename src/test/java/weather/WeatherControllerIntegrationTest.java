@@ -96,4 +96,13 @@ class WeatherControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].city", equalToIgnoringCase("TestCity")))
                 .andExpect(jsonPath("$[0].averageTemperatureCelsius", is(28.0)));
     }
+
+    @Test
+    @DisplayName("GET /api/cities returns city suggestions for autocomplete")
+    void returnsCitySuggestions() throws Exception {
+        mockMvc.perform(get("/api/cities").param("q", "Lon"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThan(0))))
+                .andExpect(jsonPath("$[0].name", containsStringIgnoringCase("Lon")));
+    }
 }

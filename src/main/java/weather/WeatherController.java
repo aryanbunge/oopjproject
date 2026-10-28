@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -61,6 +62,44 @@ public class WeatherController {
         return service.history(city);
     }
 
+    /** Dedicated real-time current weather endpoint */
+    @GetMapping("/api/current")
+    public ResponseEntity<?> getCurrent(
+            @RequestParam String city,
+            @RequestParam(required = false) String apiKey) {
+        String key = resolveApiKey(apiKey);
+        if (key == null || key.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "API key required. Set OPENWEATHER_API_KEY in .env or provide apiKey param."));
+        }
+        try {
+            CurrentWeather cw = new OpenWeatherMapForecastReader().readCurrentWeather(city.trim(), key);
+            return ResponseEntity.ok(cw);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** City autocomplete suggestion endpoint using OpenWeather Geocoding + curated world cities */
+    @GetMapping("/api/cities")
+    public List<Map<String, String>> suggestCities(
+            @RequestParam String q,
+            @RequestParam(required = false) String apiKey) {
+        String key = resolveApiKey(apiKey);
+        List<Map<String, String>> results = new ArrayList<>();
+        if (key != null && !key.isBlank()) {
+            results.addAll(new OpenWeatherMapForecastReader().searchCities(q, key));
+        }
+        if (results.isEmpty() || results.size() < 3) {
+            for (Map<String, String> city : filterCuratedCities(q)) {
+                if (results.stream().noneMatch(c -> c.get("queryValue").equalsIgnoreCase(city.get("queryValue")))) {
+                    results.add(city);
+                }
+            }
+        }
+        return results;
+    }
+
     /** Frontend endpoint: Live forecast + auto-persists to H2 database */
     @GetMapping("/api/forecast")
     public ResponseEntity<?> getForecast(
@@ -79,9 +118,18 @@ public class WeatherController {
         }
 
         try {
-            List<WeatherRecord> records = new OpenWeatherMapForecastReader().readForecast(city.trim(), key);
+            OpenWeatherMapForecastReader reader = new OpenWeatherMapForecastReader();
+            List<WeatherRecord> records = reader.readForecast(city.trim(), key);
             AnomalyDetector detector = new AnomalyDetector(maxTemp, minTemp, maxRain, maxWind, maxDelta);
             List<DetectionResult> results = detector.detect(records);
+
+            // Fetch live current weather observation
+            CurrentWeather currentWeather = null;
+            try {
+                currentWeather = reader.readCurrentWeather(city.trim(), key);
+            } catch (Exception ignored) {
+                // If current weather fails, continue gracefully with forecast
+            }
 
             // Persist observations into H2 Database
             List<WeatherObservation> toSave = new ArrayList<>();
@@ -96,7 +144,7 @@ public class WeatherController {
             }
             repository.saveAll(toSave);
 
-            return ResponseEntity.ok(formatResponse(results, "5-Day Forecast for " + city, maxTemp, minTemp, maxRain, maxWind, maxDelta));
+            return ResponseEntity.ok(formatResponse(results, "5-Day Forecast for " + city, maxTemp, minTemp, maxRain, maxWind, maxDelta, currentWeather));
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
         }
@@ -138,6 +186,10 @@ public class WeatherController {
     }
 
     private Map<String, Object> formatResponse(List<DetectionResult> results, String title, double maxT, double minT, double maxR, double maxW, double maxD) {
+        return formatResponse(results, title, maxT, minT, maxR, maxW, maxD, null);
+    }
+
+    private Map<String, Object> formatResponse(List<DetectionResult> results, String title, double maxT, double minT, double maxR, double maxW, double maxD, CurrentWeather currentWeather) {
         int anomalyDays = 0;
         double peak = -999, low = 999, maxWind = 0, totalRain = 0;
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -166,12 +218,51 @@ public class WeatherController {
             ));
         }
 
-        return Map.of(
-            "title", title,
-            "thresholds", Map.of("maxTemperatureC", maxT, "minTemperatureC", minT, "maxRainfallMm", maxR, "maxWindSpeedKmh", maxW, "maxDailyTemperatureChangeC", maxD),
-            "summary", Map.of("totalDays", results.size(), "anomalyDays", anomalyDays, "peakTemperatureC", String.format("%.1f", results.isEmpty() ? 0 : peak), "lowestTemperatureC", String.format("%.1f", results.isEmpty() ? 0 : low), "maxWindSpeedKmh", String.format("%.1f", maxWind), "totalRainfallMm", String.format("%.1f", totalRain)),
-            "results", rows
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("title", title);
+        response.put("thresholds", Map.of("maxTemperatureC", maxT, "minTemperatureC", minT, "maxRainfallMm", maxR, "maxWindSpeedKmh", maxW, "maxDailyTemperatureChangeC", maxD));
+        response.put("summary", Map.of("totalDays", results.size(), "anomalyDays", anomalyDays, "peakTemperatureC", String.format("%.1f", results.isEmpty() ? 0 : peak), "lowestTemperatureC", String.format("%.1f", results.isEmpty() ? 0 : low), "maxWindSpeedKmh", String.format("%.1f", maxWind), "totalRainfallMm", String.format("%.1f", totalRain)));
+        response.put("results", rows);
+        if (currentWeather != null) {
+            response.put("currentWeather", currentWeather);
+        }
+        return response;
+    }
+
+    private List<Map<String, String>> filterCuratedCities(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+        String q = query.trim().toLowerCase();
+        List<Map<String, String>> all = List.of(
+            Map.of("name", "London", "country", "GB", "state", "England", "displayName", "London, England, GB", "queryValue", "London,GB"),
+            Map.of("name", "Tokyo", "country", "JP", "state", "Kanto", "displayName", "Tokyo, Kanto, JP", "queryValue", "Tokyo,JP"),
+            Map.of("name", "New York", "country", "US", "state", "New York", "displayName", "New York, NY, US", "queryValue", "New York,US"),
+            Map.of("name", "Mumbai", "country", "IN", "state", "Maharashtra", "displayName", "Mumbai, Maharashtra, IN", "queryValue", "Mumbai,IN"),
+            Map.of("name", "Delhi", "country", "IN", "state", "Delhi", "displayName", "Delhi, IN", "queryValue", "Delhi,IN"),
+            Map.of("name", "Bangalore", "country", "IN", "state", "Karnataka", "displayName", "Bangalore, Karnataka, IN", "queryValue", "Bangalore,IN"),
+            Map.of("name", "Paris", "country", "FR", "state", "Ile-de-France", "displayName", "Paris, Ile-de-France, FR", "queryValue", "Paris,FR"),
+            Map.of("name", "Berlin", "country", "DE", "state", "Berlin", "displayName", "Berlin, DE", "queryValue", "Berlin,DE"),
+            Map.of("name", "Sydney", "country", "AU", "state", "New South Wales", "displayName", "Sydney, NSW, AU", "queryValue", "Sydney,AU"),
+            Map.of("name", "Singapore", "country", "SG", "state", "", "displayName", "Singapore, SG", "queryValue", "Singapore,SG"),
+            Map.of("name", "Dubai", "country", "AE", "state", "Dubai", "displayName", "Dubai, AE", "queryValue", "Dubai,AE"),
+            Map.of("name", "Toronto", "country", "CA", "state", "Ontario", "displayName", "Toronto, ON, CA", "queryValue", "Toronto,CA"),
+            Map.of("name", "San Francisco", "country", "US", "state", "California", "displayName", "San Francisco, CA, US", "queryValue", "San Francisco,US"),
+            Map.of("name", "Chicago", "country", "US", "state", "Illinois", "displayName", "Chicago, IL, US", "queryValue", "Chicago,US"),
+            Map.of("name", "Reykjavik", "country", "IS", "state", "", "displayName", "Reykjavik, IS", "queryValue", "Reykjavik,IS"),
+            Map.of("name", "Rome", "country", "IT", "state", "Lazio", "displayName", "Rome, Lazio, IT", "queryValue", "Rome,IT"),
+            Map.of("name", "Madrid", "country", "ES", "state", "Madrid", "displayName", "Madrid, ES", "queryValue", "Madrid,ES"),
+            Map.of("name", "Amsterdam", "country", "NL", "state", "North Holland", "displayName", "Amsterdam, NL", "queryValue", "Amsterdam,NL"),
+            Map.of("name", "Zurich", "country", "CH", "state", "Zurich", "displayName", "Zurich, CH", "queryValue", "Zurich,CH"),
+            Map.of("name", "Seoul", "country", "KR", "state", "", "displayName", "Seoul, KR", "queryValue", "Seoul,KR")
         );
+        List<Map<String, String>> matches = new ArrayList<>();
+        for (Map<String, String> c : all) {
+            if (c.get("name").toLowerCase().contains(q) || c.get("queryValue").toLowerCase().contains(q)) {
+                matches.add(c);
+            }
+        }
+        return matches;
     }
 
     private List<WeatherRecord> parseCsv(String csv) throws IOException {

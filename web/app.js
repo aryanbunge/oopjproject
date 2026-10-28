@@ -15,6 +15,7 @@
         city: 'London,GB',
         apiKey: localStorage.getItem('openweather_api_key') || '',
         activeTitle: 'Loading weather data...',
+        currentWeather: null,
         records: [], // Array of { date, temperatureCelsius, rainfallMm, windSpeedKmh }
         results: [], // Array of DetectionResult objects
         thresholds: {
@@ -38,6 +39,23 @@
         liveControls: document.getElementById('live-controls'),
         csvControls: document.getElementById('csv-controls'),
         cityInput: document.getElementById('city-input'),
+        citySuggestionsDropdown: document.getElementById('city-suggestions-dropdown'),
+        currentWeatherCard: document.getElementById('current-weather-card'),
+        cwCityName: document.getElementById('cw-city-name'),
+        cwTempVal: document.getElementById('cw-temp-val'),
+        cwFeelsVal: document.getElementById('cw-feels-val'),
+        cwConditionMain: document.getElementById('cw-condition-main'),
+        cwConditionDesc: document.getElementById('cw-condition-desc'),
+        cwConditionIcon: document.getElementById('cw-condition-icon'),
+        cwHumidityVal: document.getElementById('cw-humidity-val'),
+        cwHumidityBar: document.getElementById('cw-humidity-bar'),
+        cwWindVal: document.getElementById('cw-wind-val'),
+        cwWindDir: document.getElementById('cw-wind-dir'),
+        cwPressureVal: document.getElementById('cw-pressure-val'),
+        cwRangeVal: document.getElementById('cw-range-val'),
+        cwUpdatedTime: document.getElementById('cw-updated-time'),
+        btnRefreshCurrent: document.getElementById('btn-refresh-current'),
+        cwStreamIndicator: document.getElementById('cw-stream-indicator'),
         btnFetchForecast: document.getElementById('btn-fetch-forecast'),
         btnToggleKey: document.getElementById('btn-toggle-key'),
         keyPopover: document.getElementById('key-popover'),
@@ -814,6 +832,263 @@
     }
 
     // -------------------------------------------------------------------------
+    // Current Weather & Real-Time Telemetry
+    // -------------------------------------------------------------------------
+    function renderCurrentWeather(cw, city) {
+        if (!elements.currentWeatherCard) return;
+
+        if (state.mode === 'csv') {
+            elements.currentWeatherCard.classList.remove('hidden');
+            if (elements.cwCityName) elements.cwCityName.textContent = state.activeTitle || 'Offline Dataset';
+            if (elements.cwStreamIndicator) {
+                elements.cwStreamIndicator.textContent = 'CSV DATASET';
+                elements.cwStreamIndicator.style.background = 'rgba(244, 162, 97, 0.16)';
+                elements.cwStreamIndicator.style.color = '#c56024';
+            }
+            if (elements.cwConditionMain) elements.cwConditionMain.textContent = 'Historical Records';
+            if (elements.cwConditionDesc) elements.cwConditionDesc.textContent = `${state.records.length} days analyzed for thresholds`;
+            if (elements.cwConditionIcon) elements.cwConditionIcon.src = 'https://openweathermap.org/img/wn/02d@2x.png';
+            if (state.records.length > 0) {
+                const latest = state.records[state.records.length - 1];
+                if (elements.cwTempVal) elements.cwTempVal.innerHTML = `${latest.temperatureCelsius.toFixed(1)}<span class="cw-temp-unit">°C</span>`;
+                if (elements.cwFeelsVal) elements.cwFeelsVal.textContent = `${latest.temperatureCelsius.toFixed(1)}°C`;
+                if (elements.cwHumidityVal) elements.cwHumidityVal.textContent = `${latest.rainfallMm.toFixed(0)} mm`;
+                if (elements.cwHumidityBar) elements.cwHumidityBar.style.width = `${Math.min(100, Math.max(5, latest.rainfallMm))}%`;
+                if (elements.cwWindVal) elements.cwWindVal.innerHTML = `${latest.windSpeedKmh.toFixed(1)} <span class="unit">km/h</span>`;
+                if (elements.cwWindDir) elements.cwWindDir.textContent = 'Day ' + latest.date;
+                if (elements.cwPressureVal) elements.cwPressureVal.innerHTML = `N/A <span class="unit">offline</span>`;
+                const temps = state.records.map(r => r.temperatureCelsius);
+                if (elements.cwRangeVal) elements.cwRangeVal.textContent = `${Math.min(...temps).toFixed(0)}° / ${Math.max(...temps).toFixed(0)}°`;
+            }
+            if (elements.cwUpdatedTime) elements.cwUpdatedTime.textContent = 'Dataset Loaded';
+            return;
+        }
+
+        if (!cw) {
+            elements.currentWeatherCard.classList.add('hidden');
+            return;
+        }
+
+        elements.currentWeatherCard.classList.remove('hidden');
+
+        if (elements.cwStreamIndicator) {
+            elements.cwStreamIndicator.textContent = 'REAL-TIME STREAM ACTIVE';
+            elements.cwStreamIndicator.style.background = 'rgba(46, 196, 182, 0.14)';
+            elements.cwStreamIndicator.style.color = '#0b7285';
+        }
+
+        const displayName = cw.cityName ? (cw.cityName + (cw.country ? ', ' + cw.country : '')) : (city || state.city);
+        if (elements.cwCityName) elements.cwCityName.textContent = displayName;
+
+        if (elements.cwTempVal) {
+            elements.cwTempVal.innerHTML = `${cw.temperatureCelsius.toFixed(1)}<span class="cw-temp-unit">°C</span>`;
+        }
+
+        if (elements.cwFeelsVal) {
+            elements.cwFeelsVal.textContent = `${cw.feelsLikeCelsius.toFixed(1)}°C`;
+        }
+
+        if (elements.cwConditionMain) {
+            elements.cwConditionMain.textContent = cw.condition || 'Clear';
+        }
+
+        if (elements.cwConditionDesc) {
+            elements.cwConditionDesc.textContent = cw.description || 'Current atmospheric conditions nominal';
+        }
+
+        if (elements.cwConditionIcon && cw.iconCode) {
+            elements.cwConditionIcon.src = `https://openweathermap.org/img/wn/${cw.iconCode}@2x.png`;
+            elements.cwConditionIcon.alt = cw.description || cw.condition;
+        }
+
+        if (elements.cwHumidityVal) {
+            elements.cwHumidityVal.textContent = `${Math.round(cw.humidityPercent)}%`;
+        }
+
+        if (elements.cwHumidityBar) {
+            elements.cwHumidityBar.style.width = `${Math.min(100, Math.max(4, cw.humidityPercent))}%`;
+        }
+
+        if (elements.cwWindVal) {
+            elements.cwWindVal.innerHTML = `${cw.windSpeedKmh.toFixed(1)} <span class="unit">km/h</span>`;
+        }
+
+        if (elements.cwWindDir) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const dirIndex = Math.round((cw.windDegree || 0) / 45) % 8;
+            elements.cwWindDir.textContent = `${directions[dirIndex]} (${cw.windDegree || 0}°)`;
+        }
+
+        if (elements.cwPressureVal) {
+            elements.cwPressureVal.innerHTML = `${Math.round(cw.pressureHpa)} <span class="unit">hPa</span>`;
+        }
+
+        if (elements.cwRangeVal) {
+            elements.cwRangeVal.textContent = `${cw.tempMinCelsius.toFixed(0)}° / ${cw.tempMaxCelsius.toFixed(0)}°`;
+        }
+
+        if (elements.cwUpdatedTime) {
+            const dateObj = cw.timestamp ? new Date(cw.timestamp) : new Date();
+            elements.cwUpdatedTime.textContent = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' LOCAL';
+        }
+    }
+
+    async function syncCurrentWeatherOnly() {
+        if (!state.city || state.mode === 'csv') return;
+        if (elements.btnRefreshCurrent) {
+            elements.btnRefreshCurrent.disabled = true;
+            const span = elements.btnRefreshCurrent.querySelector('span');
+            if (span) span.textContent = 'Syncing...';
+        }
+
+        const params = new URLSearchParams({ city: state.city.trim() });
+        if (state.apiKey) params.set('apiKey', state.apiKey.trim());
+
+        try {
+            const resp = await fetch(`/api/current?${params.toString()}`);
+            if (!resp.ok) throw new Error('Could not sync current weather');
+            const cw = await resp.json();
+            state.currentWeather = cw;
+            renderCurrentWeather(cw, state.city);
+            showToast(`Real-time weather updated for ${cw.cityName || state.city}.`);
+        } catch (err) {
+            console.warn('Real-time sync error:', err);
+            showToast('Could not sync live weather: ' + err.message, true);
+        } finally {
+            if (elements.btnRefreshCurrent) {
+                elements.btnRefreshCurrent.disabled = false;
+                const span = elements.btnRefreshCurrent.querySelector('span');
+                if (span) span.textContent = 'Sync Live';
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // City Autocomplete & Suggestions Engine
+    // -------------------------------------------------------------------------
+    let cityDebounceTimer = null;
+    let currentSuggestions = [];
+    let highlightedIndex = -1;
+
+    function handleCityInput(e) {
+        clearTimeout(cityDebounceTimer);
+        const query = e.target.value.trim();
+
+        if (query.length < 1) {
+            hideSuggestions();
+            return;
+        }
+
+        cityDebounceTimer = setTimeout(async () => {
+            try {
+                const params = new URLSearchParams({ q: query });
+                if (state.apiKey) params.set('apiKey', state.apiKey.trim());
+                const resp = await fetch(`/api/cities?${params.toString()}`);
+                if (!resp.ok) return;
+                const list = await resp.json();
+                renderSuggestions(list);
+            } catch (err) {
+                console.warn('City suggestions error:', err);
+            }
+        }, 180);
+    }
+
+    function renderSuggestions(cities) {
+        if (!elements.citySuggestionsDropdown) return;
+        currentSuggestions = cities || [];
+        highlightedIndex = -1;
+
+        if (currentSuggestions.length === 0) {
+            elements.citySuggestionsDropdown.innerHTML = '<div class="suggestion-empty">No matching cities found</div>';
+            elements.citySuggestionsDropdown.classList.remove('hidden');
+            return;
+        }
+
+        elements.citySuggestionsDropdown.innerHTML = '';
+        currentSuggestions.forEach((c, idx) => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item';
+            item.setAttribute('role', 'option');
+            item.setAttribute('data-index', idx);
+            item.innerHTML = `
+                <div class="suggestion-main">
+                    <span class="suggestion-name">${escapeHtml(c.name)}</span>
+                    <span class="suggestion-state">${escapeHtml(c.state || c.country)}</span>
+                </div>
+                <span class="suggestion-badge">${escapeHtml(c.country || 'GEO')}</span>
+            `;
+
+            item.addEventListener('click', () => {
+                selectCitySuggestion(c);
+            });
+
+            elements.citySuggestionsDropdown.appendChild(item);
+        });
+
+        elements.citySuggestionsDropdown.classList.remove('hidden');
+    }
+
+    function selectCitySuggestion(c) {
+        const val = c.queryValue || (c.name + (c.country ? ',' + c.country : ''));
+        elements.cityInput.value = val;
+        state.city = val;
+        hideSuggestions();
+        fetchForecast(state.city, state.apiKey);
+    }
+
+    function hideSuggestions() {
+        if (!elements.citySuggestionsDropdown) return;
+        elements.citySuggestionsDropdown.classList.add('hidden');
+        highlightedIndex = -1;
+    }
+
+    function handleCityKeydown(e) {
+        if (!elements.citySuggestionsDropdown || elements.citySuggestionsDropdown.classList.contains('hidden')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                elements.btnFetchForecast.click();
+            }
+            return;
+        }
+
+        const items = elements.citySuggestionsDropdown.querySelectorAll('.suggestion-item');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (items.length > 0) {
+                highlightedIndex = (highlightedIndex + 1) % items.length;
+                updateHighlight(items);
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (items.length > 0) {
+                highlightedIndex = (highlightedIndex - 1 + items.length) % items.length;
+                updateHighlight(items);
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex >= 0 && highlightedIndex < currentSuggestions.length) {
+                selectCitySuggestion(currentSuggestions[highlightedIndex]);
+            } else {
+                elements.btnFetchForecast.click();
+                hideSuggestions();
+            }
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+        }
+    }
+
+    function updateHighlight(items) {
+        items.forEach((item, idx) => {
+            if (idx === highlightedIndex) {
+                item.classList.add('highlighted');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('highlighted');
+            }
+        });
+    }
+
+    // -------------------------------------------------------------------------
     // API Data Fetching & CSV Handling
     // -------------------------------------------------------------------------
 
@@ -854,6 +1129,14 @@
             }
 
             renderAll();
+
+            if (data.currentWeather) {
+                state.currentWeather = data.currentWeather;
+                renderCurrentWeather(data.currentWeather, city);
+            } else {
+                syncCurrentWeatherOnly();
+            }
+
             showToast(`Weather forecast loaded for ${city}.`);
         } catch (err) {
             console.error(err);
@@ -894,6 +1177,7 @@
             }
 
             renderAll();
+            renderCurrentWeather(null, 'Sample Dataset');
             showToast('Sample dataset loaded.');
         } catch (err) {
             console.error(err);
@@ -938,6 +1222,7 @@
             }
 
             renderAll();
+            renderCurrentWeather(null, 'Custom CSV');
             showToast(`Loaded ${state.records.length} weather records from CSV.`);
             closeCsvModal();
         } catch (err) {
@@ -972,6 +1257,12 @@
 
             elements.liveControls.classList.remove('hidden');
             elements.csvControls.classList.add('hidden');
+
+            if (state.currentWeather) {
+                renderCurrentWeather(state.currentWeather, state.city);
+            } else {
+                fetchForecast(state.city, state.apiKey);
+            }
         });
 
         elements.modeCsv.addEventListener('click', () => {
@@ -983,21 +1274,35 @@
 
             elements.csvControls.classList.remove('hidden');
             elements.liveControls.classList.add('hidden');
+            renderCurrentWeather(null, 'CSV Dataset');
         });
 
-        // City Search
+        // City Search & Autocomplete
+        if (elements.cityInput) {
+            elements.cityInput.addEventListener('input', handleCityInput);
+            elements.cityInput.addEventListener('keydown', handleCityKeydown);
+        }
+
+        // Close suggestions dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (elements.citySuggestionsDropdown && !elements.cityInput.contains(e.target) && !elements.citySuggestionsDropdown.contains(e.target)) {
+                hideSuggestions();
+            }
+        });
+
+        // Current Weather Refresh Button
+        if (elements.btnRefreshCurrent) {
+            elements.btnRefreshCurrent.addEventListener('click', () => {
+                syncCurrentWeatherOnly();
+            });
+        }
+
         elements.btnFetchForecast.addEventListener('click', () => {
             const city = elements.cityInput.value.trim();
             if (city) {
                 state.city = city;
+                hideSuggestions();
                 fetchForecast(state.city, state.apiKey);
-            }
-        });
-
-        elements.cityInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                elements.btnFetchForecast.click();
             }
         });
 
@@ -1207,7 +1512,8 @@
             elements.keyStatusText.textContent = `KEY: SAVED (${state.apiKey.slice(0, 4)}...${state.apiKey.slice(-4)})`;
         }
 
-        loadSampleCsv();
+        // Initial boot in Live Forecast mode so real-time streaming is immediately visible
+        fetchForecast(state.city, state.apiKey);
     }
 
     window.addEventListener('DOMContentLoaded', init);

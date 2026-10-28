@@ -65,12 +65,14 @@
                             <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
                             <circle cx="12" cy="10" r="3"/>
                         </svg>
-                        <input type="text" id="city-input" placeholder="e.g. London,GB or Tokyo" value="London,GB" autocomplete="off" spellcheck="false">
+                        <input type="text" id="city-input" placeholder="Search city (e.g. London, Tokyo, Mumbai...)" value="London,GB" autocomplete="off" spellcheck="false">
                         <button type="button" class="action-btn primary-action" id="btn-fetch-forecast">
                             <span>Check Weather</span>
                             <kbd>↵</kbd>
                         </button>
                     </div>
+                    <!-- City Autocomplete Suggestions Dropdown -->
+                    <div class="city-suggestions-dropdown hidden" id="city-suggestions-dropdown" role="listbox" aria-label="City suggestions"></div>
                 </div>
 
                 <!-- Quick Location Chips -->
@@ -147,6 +149,85 @@
             <!-- Main Stage (Chart & Daily Cards) -->
             <section class="main-stage">
                 
+                <!-- Live Current Weather Station Card -->
+                <article class="current-weather-card glass-panel" id="current-weather-card">
+                    <div class="cw-header">
+                        <div class="cw-location-wrap">
+                            <div class="cw-station-pulse">
+                                <span class="dot-live"></span>
+                                <span class="cw-badge-text">LIVE STATION TELEMETRY</span>
+                                <span class="cw-stream-indicator" id="cw-stream-indicator">REAL-TIME STREAM ACTIVE</span>
+                            </div>
+                            <h2 class="cw-city-title" id="cw-city-name">London, GB</h2>
+                            <div class="cw-timestamp-row">
+                                <span class="cw-time-label">Observation Recorded:</span>
+                                <time id="cw-updated-time">Today, 01:10 UTC</time>
+                                <button type="button" class="cw-refresh-btn" id="btn-refresh-current" title="Refresh live weather">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                                        <path d="M23 4v6h-6M1 20v-6h6"/>
+                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                    </svg>
+                                    <span>Sync Live</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="cw-condition-badge" id="cw-condition-badge">
+                            <img id="cw-condition-icon" src="https://openweathermap.org/img/wn/03n@2x.png" alt="Weather condition" class="cw-icon-img" width="48" height="48">
+                            <div class="cw-condition-text-group">
+                                <span class="cw-condition-main" id="cw-condition-main">Scattered Clouds</span>
+                                <span class="cw-condition-desc" id="cw-condition-desc">scattered clouds across station</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Row -->
+                    <div class="cw-body">
+                        <div class="cw-hero-temp">
+                            <div class="cw-temp-value font-serif" id="cw-temp-val">12.6<span class="cw-temp-unit">°C</span></div>
+                            <div class="cw-feels-like">Feels like <strong id="cw-feels-val">12.2°C</strong></div>
+                        </div>
+
+                        <div class="cw-stats-grid">
+                            <div class="cw-stat-tile">
+                                <div class="cw-stat-label">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                                    <span>HUMIDITY</span>
+                                </div>
+                                <div class="cw-stat-val font-serif" id="cw-humidity-val">85%</div>
+                                <div class="cw-stat-bar-track"><div class="cw-stat-bar-fill" id="cw-humidity-bar" style="width: 85%;"></div></div>
+                            </div>
+
+                            <div class="cw-stat-tile">
+                                <div class="cw-stat-label">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+                                    <span>WIND VELOCITY</span>
+                                </div>
+                                <div class="cw-stat-val font-serif" id="cw-wind-val">9.8 <span class="unit">km/h</span></div>
+                                <div class="cw-stat-sub" id="cw-wind-dir">SW (231°)</div>
+                            </div>
+
+                            <div class="cw-stat-tile">
+                                <div class="cw-stat-label">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                    <span>BAROMETER</span>
+                                </div>
+                                <div class="cw-stat-val font-serif" id="cw-pressure-val">1027 <span class="unit">hPa</span></div>
+                                <div class="cw-stat-sub">Sea-level pressure</div>
+                            </div>
+
+                            <div class="cw-stat-tile">
+                                <div class="cw-stat-label">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+                                    <span>TODAY'S RANGE</span>
+                                </div>
+                                <div class="cw-stat-val font-serif" id="cw-range-val">11° / 14°</div>
+                                <div class="cw-stat-sub">Min / Max Recorded</div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
                 <!-- Chart Card -->
                 <div class="horizon-card glass-panel">
                     <div class="card-masthead">
