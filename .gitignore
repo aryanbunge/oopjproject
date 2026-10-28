@@ -1,3 +1,10 @@
 out/
+target/
 sources/
 *.class
+data/*.mv.db
+data/*.trace.db
+data/*.lock.db
+.env
+.env.*
+!.env.example
