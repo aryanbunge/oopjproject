@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Anomaly Detector — Forecast &amp; CSV Analysis</title>
+    <meta name="description" content="A weather anomaly detection system that evaluates daily temperatures, rainfall, and wind speeds using configurable thresholds.">
+    
+    <!-- Google Fonts: Instrument Serif, Plus Jakarta Sans, JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Background Ocean Wave WebGL Canvas -->
+    <canvas id="atmosphere-canvas" aria-hidden="true"></canvas>
+
+    <!-- App Shell -->
+    <div class="telemetry-viewport">
+        
+        <!-- Header -->
+        <header class="telemetry-masthead glass-panel">
+            <div class="masthead-identity">
+                <div class="station-beacon">
+                    <span class="beacon-pulse" id="system-beacon"></span>
+                    <span class="beacon-label">LIVE STATION</span>
+                </div>
+                <div class="station-meta">
+                    <h1 class="project-title">Weather Anomaly Detector <span class="utc-tag">// Daily Analysis</span></h1>
+                    <div class="geo-telemetry" id="geo-telemetry">Daily Threshold &amp; Forecast Analysis</div>
+                </div>
+            </div>
+
+            <!-- Mode Switcher Tabs with Glassmorphism -->
+            <div class="mode-switcher-container">
+                <div class="mode-pill-track" role="tablist" aria-label="Input Mode">
+                    <button class="mode-pill active" id="mode-live" role="tab" aria-selected="true">
+                        <span class="pill-dot"></span>
+                        Live Forecast <span class="pill-sub">(API)</span>
+                    </button>
+                    <button class="mode-pill" id="mode-csv" role="tab" aria-selected="false">
+                        <span class="pill-dot"></span>
+                        Offline CSV <span class="pill-sub">(Dataset)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Clock -->
+            <div class="masthead-clock">
+                <div class="clock-label">UTC TIME</div>
+                <div class="clock-readout" id="utc-clock">2026-10-28 00:00:00 UTC</div>
+            </div>
+        </header>
+
+        <!-- Context Control Bar -->
+        <section class="context-bar glass-panel" aria-label="Controls">
+            <!-- Live Mode Controls -->
+            <div class="controls-group" id="live-controls">
+                <div class="search-field-wrap">
+                    <label for="city-input" class="field-label">CITY OR REGION</label>
+                    <div class="input-with-action">
+                        <svg class="field-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        <input type="text" id="city-input" placeholder="e.g. London,GB or Tokyo" value="London,GB" autocomplete="off" spellcheck="false">
+                        <button type="button" class="action-btn primary-action" id="btn-fetch-forecast">
+                            <span>Check Weather</span>
+                            <kbd>↵</kbd>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Location Chips -->
+                <div class="quick-presets">
+                    <span class="presets-label">QUICK CITIES:</span>
+                    <button type="button" class="chip" data-city="London,GB">London</button>
+                    <button type="button" class="chip" data-city="Tokyo,JP">Tokyo</button>
+                    <button type="button" class="chip" data-city="Reykjavik,IS">Reykjavik</button>
+                    <button type="button" class="chip" data-city="Mumbai,IN">Mumbai</button>
+                    <button type="button" class="chip" data-city="Dubai,AE">Dubai</button>
+                    <button type="button" class="chip" data-city="New York,US">New York</button>
+                </div>
+
+                <!-- API Key Drawer Toggle -->
+                <div class="api-key-controls">
+                    <button type="button" class="text-toggle-btn" id="btn-toggle-key" aria-expanded="false">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span id="key-status-text">API KEY: SERVER DEFAULT</span>
+                    </button>
+                    <div class="key-popover glass-panel hidden" id="key-popover">
+                        <label for="api-key-input" class="field-label">CUSTOM OPENWEATHERMAP KEY</label>
+                        <div class="popover-row">
+                            <input type="password" id="api-key-input" placeholder="Paste custom key..." autocomplete="off">
+                            <button type="button" class="chip chip-action" id="btn-save-key">SAVE</button>
+                        </div>
+                        <div class="popover-hint">Leave blank to use the server's <code>OPENWEATHER_API_KEY</code> environment variable.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CSV Mode Controls -->
+            <div class="controls-group hidden" id="csv-controls">
+                <div class="csv-actions">
+                    <button type="button" class="action-btn primary-action" id="btn-load-sample">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <span>Load sample-weather.csv</span>
+                    </button>
+
+                    <label class="action-btn secondary-action" for="csv-file-input">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span>Upload CSV</span>
+                        <input type="file" id="csv-file-input" accept=".csv,text/csv" class="visually-hidden">
+                    </label>
+
+                    <button type="button" class="action-btn tertiary-action" id="btn-open-paste-modal">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                        </svg>
+                        <span>Paste CSV Data</span>
+                    </button>
+                </div>
+                <div class="csv-format-spec">
+                    Columns: <code>date, temperature, rainfall, windSpeed</code>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Grid Layout -->
+        <main class="telemetry-grid">
+            
+            <!-- Main Stage (Chart & Daily Cards) -->
+            <section class="main-stage">
+                
+                <!-- Chart Card -->
+                <div class="horizon-card glass-panel">
+                    <div class="card-masthead">
+                        <div>
+                            <div class="card-subtitle">TEMPERATURE &amp; PRECIPITATION</div>
+                            <h2 class="card-title" id="chart-source-title">5-Day Forecast &amp; Trend</h2>
+                        </div>
+                        <div class="chart-legend">
+                            <span class="legend-item"><span class="legend-color temp-line"></span> Temperature (°C)</span>
+                            <span class="legend-item"><span class="legend-color rain-bar"></span> Rainfall (mm)</span>
+                            <span class="legend-item"><span class="legend-color wind-vector"></span> Wind Speed (km/h)</span>
+                            <span class="legend-item"><span class="legend-color threshold-line"></span> Threshold limit</span>
+                        </div>
+                    </div>
+
+                    <!-- SVG Chart Container -->
+                    <div class="svg-chart-container" id="chart-container">
+                        <svg id="horizon-svg" viewBox="0 0 900 280" preserveAspectRatio="none" role="img" aria-label="Weather Telemetry Graph">
+                            <defs>
+                                <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#F4A261" stop-opacity="0.38"/>
+                                    <stop offset="60%" stop-color="#00A8E8" stop-opacity="0.12"/>
+                                    <stop offset="100%" stop-color="#00A8E8" stop-opacity="0.0"/>
+                                </linearGradient>
+                                <linearGradient id="rainGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#2EC4B6" stop-opacity="0.75"/>
+                                    <stop offset="100%" stop-color="#2EC4B6" stop-opacity="0.25"/>
+                                </linearGradient>
+                            </defs>
+                            <g id="svg-grid-layer"></g>
+                            <g id="svg-rain-layer"></g>
+                            <g id="svg-threshold-layer"></g>
+                            <g id="svg-temp-area-layer"></g>
+                            <g id="svg-temp-line-layer"></g>
+                            <g id="svg-data-points-layer"></g>
+                            <g id="svg-wind-layer"></g>
+                        </svg>
+
+                        <!-- Tooltip -->
+                        <div class="chart-tooltip glass-panel hidden" id="chart-tooltip">
+                            <div class="tooltip-date" id="tt-date">JUN 03, 2026</div>
+                            <div class="tooltip-row"><span>Temperature:</span> <strong id="tt-temp">43.2°C</strong></div>
+                            <div class="tooltip-row"><span>Precipitation:</span> <strong id="tt-rain">2.0 mm</strong></div>
+                            <div class="tooltip-row"><span>Wind Speed:</span> <strong id="tt-wind">18.0 km/h</strong></div>
+                            <div class="tooltip-status" id="tt-status">ANOMALY DETECTED</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily Observation Cards -->
+                <div class="timeline-card glass-panel">
+                    <div class="card-masthead">
+                        <div>
+                            <div class="card-subtitle">DAILY BREAKDOWN</div>
+                            <h2 class="card-title">Daily Weather Reports</h2>
+                        </div>
+                        <div class="matrix-filter-count" id="matrix-count-badge">8 DAYS LOADED</div>
+                    </div>
+
+                    <!-- Observation Matrix Container -->
+                    <div class="observation-matrix" id="observation-matrix">
+                        <div class="matrix-loading-state">
+                            <div class="spinner"></div>
+                            <span>Loading weather data...</span>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Right Rail (Summary & Sliders) -->
+            <aside class="right-rail">
+
+                <!-- Summary Card -->
+                <div class="summary-card glass-panel">
+                    <div class="card-masthead compact">
+                        <div>
+                            <div class="card-subtitle">AT A GLANCE</div>
+                            <h3 class="card-title">Weather Summary</h3>
+                        </div>
+                    </div>
+
+                    <div class="summary-metrics-grid">
+                        <div class="metric-cell">
+                            <div class="metric-label">DAYS ANALYZED</div>
+                            <div class="metric-value font-serif" id="stat-total-days">8</div>
+                            <div class="metric-sub">Complete Days</div>
+                        </div>
+                        <div class="metric-cell alert-cell" id="stat-anomaly-cell">
+                            <div class="metric-label">ANOMALIES FOUND</div>
+                            <div class="metric-value font-serif" id="stat-anomaly-days">6</div>
+                            <div class="metric-sub" id="stat-anomaly-percent">75% of Days Flagged</div>
+                        </div>
+                        <div class="metric-cell">
+                            <div class="metric-label">MAX TEMPERATURE</div>
+                            <div class="metric-value font-serif" id="stat-peak-temp">43.2<span class="unit">°C</span></div>
+                            <div class="metric-sub" id="stat-low-temp">Min: -2.5°C</div>
+                        </div>
+                        <div class="metric-cell">
+                            <div class="metric-label">PEAK WIND SPEED</div>
+                            <div class="metric-value font-serif" id="stat-max-wind">92.0<span class="unit">km/h</span></div>
+                            <div class="metric-sub">Threshold: 80 km/h</div>
+                        </div>
+                        <div class="metric-cell span-2">
+                            <div class="metric-label">TOTAL RAINFALL</div>
+                            <div class="metric-value font-serif" id="stat-total-rain">157.0<span class="unit">mm</span></div>
+                            <div class="metric-sub">Period Cumulative</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Threshold Sliders -->
+                <div class="calibration-card glass-panel">
+                    <div class="card-masthead compact">
+                        <div>
+                            <div class="card-subtitle">DETECTION RULES</div>
+                            <h3 class="card-title">Threshold Settings</h3>
+                        </div>
+                        <button type="button" class="chip chip-action" id="btn-reset-rules" title="Reset all rules to defaults">RESET</button>
+                    </div>
+                    <p class="calibration-intro">
+                        Adjust any threshold below to immediately re-test the weather records in real time.
+                    </p>
+
+                    <div class="slider-instrument-group">
+                        <!-- Rule 1: Max Temp -->
+                        <div class="slider-field">
+                            <div class="field-meta">
+                                <label for="slider-max-temp" class="rule-title">MAX TEMPERATURE</label>
+                                <div class="rule-val-badge"><span id="val-max-temp">40.0</span> <span class="unit">°C</span></div>
+                            </div>
+                            <div class="slider-control">
+                                <input type="range" id="slider-max-temp" min="20" max="55" step="0.5" value="40.0">
+                                <div class="slider-scale">
+                                    <span>20°C</span>
+                                    <span class="scale-anchor">40°C</span>
+                                    <span>55°C</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rule 2: Min Temp -->
+                        <div class="slider-field">
+                            <div class="field-meta">
+                                <label for="slider-min-temp" class="rule-title">MIN TEMPERATURE</label>
+                                <div class="rule-val-badge"><span id="val-min-temp">0.0</span> <span class="unit">°C</span></div>
+                            </div>
+                            <div class="slider-control">
+                                <input type="range" id="slider-min-temp" min="-25" max="20" step="0.5" value="0.0">
+                                <div class="slider-scale">
+                                    <span>-25°C</span>
+                                    <span class="scale-anchor">0°C</span>
+                                    <span>20°C</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rule 3: Max Rainfall -->
+                        <div class="slider-field">
+                            <div class="field-meta">
+                                <label for="slider-max-rain" class="rule-title">RAINFALL ALERT LIMIT</label>
+                                <div class="rule-val-badge"><span id="val-max-rain">100.0</span> <span class="unit">mm</span></div>
+                            </div>
+                            <div class="slider-control">
+                                <input type="range" id="slider-max-rain" min="10" max="250" step="5" value="100.0">
+                                <div class="slider-scale">
+                                    <span>10mm</span>
+                                    <span class="scale-anchor">100mm</span>
+                                    <span>250mm</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rule 4: Max Wind Speed -->
+                        <div class="slider-field">
+                            <div class="field-meta">
+                                <label for="slider-max-wind" class="rule-title">WIND SPEED ALERT LIMIT</label>
+                                <div class="rule-val-badge"><span id="val-max-wind">80.0</span> <span class="unit">km/h</span></div>
+                            </div>
+                            <div class="slider-control">
+                                <input type="range" id="slider-max-wind" min="20" max="160" step="2" value="80.0">
+                                <div class="slider-scale">
+                                    <span>20 km/h</span>
+                                    <span class="scale-anchor">80 km/h</span>
+                                    <span>160 km/h</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rule 5: Sudden Day-to-Day Change -->
+                        <div class="slider-field">
+                            <div class="field-meta">
+                                <label for="slider-max-delta" class="rule-title">DAY-TO-DAY TEMP JUMP</label>
+                                <div class="rule-val-badge"><span id="val-max-delta">10.0</span> <span class="unit">°C</span></div>
+                            </div>
+                            <div class="slider-control">
+                                <input type="range" id="slider-max-delta" min="2" max="25" step="0.5" value="10.0">
+                                <div class="slider-scale">
+                                    <span>2°C</span>
+                                    <span class="scale-anchor">10°C</span>
+                                    <span>25°C</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="calibration-footer">
+                        <div class="calibration-state-tag">
+                            <span class="dot"></span>
+                            <span>LIVE RE-EVALUATION ENABLED</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Architectural Notes Card -->
+                <div class="architecture-card glass-panel">
+                    <div class="card-subtitle">SYSTEM ARCHITECTURE</div>
+                    <ul class="arch-pills">
+                        <li><strong>Encapsulation:</strong> <code>WeatherRecord</code> &amp; <code>Anomaly</code></li>
+                        <li><strong>Composition:</strong> <code>DetectionResult</code> (has-a record + list)</li>
+                        <li><strong>Engine:</strong> <code>AnomalyDetector</code> (threshold comparison)</li>
+                        <li><strong>Readers:</strong> <code>ForecastReader</code> &amp; <code>CsvReader</code></li>
+                    </ul>
+                </div>
+
+            </aside>
+        </main>
+
+        <!-- Footer -->
+        <footer class="telemetry-footer">
+            <div class="footer-left">
+                <span>Weather Anomaly Detection System</span>
+                <span class="sep">·</span>
+                <span>Pure Java 11+ Backend (Zero Dependencies)</span>
+            </div>
+            <div class="footer-right">
+                <span>Localhost:8080</span>
+                <span class="sep">·</span>
+                <span id="canvas-status">Ocean Wave Canvas Active</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Paste CSV Modal -->
+    <div class="modal-overlay hidden" id="csv-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <div>
+                    <div class="card-subtitle">CUSTOM DATA</div>
+                    <h3 class="card-title" id="modal-title">Paste Weather CSV</h3>
+                </div>
+                <button type="button" class="close-btn" id="btn-close-modal" aria-label="Close dialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">
+                    Paste rows separated by commas. Required format: <code>date,temperature,rainfall,windSpeed</code>.
+                </p>
+                <textarea id="csv-paste-textarea" rows="8" spellcheck="false" placeholder="date,temperature,rainfall,windSpeed
+2026-06-01,29.0,4.0,12.0
+2026-06-02,30.5,8.0,15.0
+2026-06-03,43.2,2.0,18.0
+2026-06-04,31.0,125.0,22.0"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="action-btn secondary-action" id="btn-modal-cancel">Cancel</button>
+                <button type="button" class="action-btn primary-action" id="btn-modal-submit">Run Detection</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div class="toast-notification hidden" id="toast-banner" role="status" aria-live="polite">
+        <div class="toast-content" id="toast-message">Notification</div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -9,6 +9,17 @@ import java.util.Scanner;
 public class WeatherAnomalyDetectionSystem {
     public static void main(String[] args) {
         try {
+            if (args.length > 0 && (args[0].equalsIgnoreCase("--web") || args[0].equalsIgnoreCase("-w") || args[0].equalsIgnoreCase("--server"))) {
+                int port = 8080;
+                if (args.length > 1) {
+                    try {
+                        port = Integer.parseInt(args[1]);
+                    } catch (NumberFormatException ignored) {}
+                }
+                WeatherWebServer.startServer(port);
+                return;
+            }
+
             List<WeatherRecord> records;
             String reportTitle;
             if (args.length > 0 && args[0].equalsIgnoreCase("--csv")) {

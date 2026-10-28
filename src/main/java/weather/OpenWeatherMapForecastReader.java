@@ -22,8 +22,8 @@ public class OpenWeatherMapForecastReader {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public List<WeatherRecord> readForecast(String city, String apiKey) throws IOException {
-        String encodedCity = URLEncoder.encode(city, StandardCharsets.UTF_8);
-        String encodedKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
+        String encodedCity = URLEncoder.encode(city.trim(), StandardCharsets.UTF_8);
+        String encodedKey = URLEncoder.encode(apiKey.trim(), StandardCharsets.UTF_8);
         String geocodingJson = get("https://api.openweathermap.org/geo/1.0/direct?q=" + encodedCity
                 + "&limit=1&appid=" + encodedKey);
         Matcher latitudeMatcher = Pattern.compile("\\\"lat\\\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)").matcher(geocodingJson);

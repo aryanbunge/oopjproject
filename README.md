@@ -43,7 +43,32 @@ $javaBin = "$env:APPDATA\.minecraft\runtime\java-runtime-epsilon\windows\java-ru
 & "$javaBin\javac.exe" -d out src\main\java\weather\*.java
 ```
 
-## Run with live API data
+## Run with interactive Web Interface (Recommended)
+
+Launch the built-in pure Java web server (zero external dependencies):
+
+```powershell
+java -cp out weather.WeatherAnomalyDetectionSystem --web
+```
+
+Then open your browser to:
+**[http://localhost:8080](http://localhost:8080)**
+
+Features in the web interface:
+- **Atmospheric Liquid Canvas:** Interactive WebGL 2D fluid simulation with mouse wake physics and state-reactive color shifts.
+- **Horizon Spline & Precipitation Chart:** Interactive SVG visualization showing temperature trajectory, threshold limits, and rainfall volumes.
+- **Dynamic Rule Calibration:** Live sliders to re-evaluate the 5 anomaly detection thresholds in real time.
+- **Dual Observation Modes:** Switch between live OpenWeatherMap polling and local/uploaded CSV dataset analysis.
+
+### Web Server REST Endpoints
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | `GET` | Serves the atmospheric telemetry web client (`index.html`, `styles.css`, `app.js`). |
+| `/api/sample` | `GET` | Evaluates the bundled `data/sample-weather.csv` with active threshold query parameters. |
+| `/api/forecast` | `GET` | Fetches a 5-day forecast for `?city=City,Country` and returns computed anomaly telemetry JSON. |
+| `/api/csv` | `POST` | Accepts raw CSV text in the request body and returns evaluated detection JSON. |
+
+## Run with live API data (CLI)
 
 Set your own OpenWeatherMap API key in the current PowerShell window. Replace the example text with your key; do not share it or add it to a project file:
 
