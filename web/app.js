@@ -41,12 +41,14 @@
         cityInput: document.getElementById('city-input'),
         citySuggestionsDropdown: document.getElementById('city-suggestions-dropdown'),
         currentWeatherCard: document.getElementById('current-weather-card'),
+        cwEyebrowText: document.getElementById('cw-eyebrow-text'),
         cwCityName: document.getElementById('cw-city-name'),
         cwTempVal: document.getElementById('cw-temp-val'),
         cwFeelsVal: document.getElementById('cw-feels-val'),
         cwConditionMain: document.getElementById('cw-condition-main'),
         cwConditionDesc: document.getElementById('cw-condition-desc'),
         cwConditionIcon: document.getElementById('cw-condition-icon'),
+        cwIconContainer: document.getElementById('cw-icon-container'),
         cwHumidityVal: document.getElementById('cw-humidity-val'),
         cwHumidityBar: document.getElementById('cw-humidity-bar'),
         cwWindVal: document.getElementById('cw-wind-val'),
@@ -70,6 +72,11 @@
         btnModalCancel: document.getElementById('btn-modal-cancel'),
         btnModalSubmit: document.getElementById('btn-modal-submit'),
         csvPasteTextarea: document.getElementById('csv-paste-textarea'),
+        btnPresetSample: document.getElementById('btn-preset-sample'),
+        btnPresetHeat: document.getElementById('btn-preset-heat'),
+        btnPresetDeluge: document.getElementById('btn-preset-deluge'),
+        btnPresetWind: document.getElementById('btn-preset-wind'),
+        btnPresetFreeze: document.getElementById('btn-preset-freeze'),
         chartSourceTitle: document.getElementById('chart-source-title'),
         horizonSvg: document.getElementById('horizon-svg'),
         chartTooltip: document.getElementById('chart-tooltip'),
@@ -491,9 +498,10 @@
 
         for (const res of results) {
             if (res.hasAnomalies) anomalyDays++;
-            const t = res.temperatureCelsius;
-            if (t > peakTemp) peakTemp = t;
-            if (t < lowTemp) lowTemp = t;
+            const maxVal = (res.maxTemperatureCelsius !== undefined) ? res.maxTemperatureCelsius : (res.maxTemp !== undefined ? res.maxTemp : res.temperatureCelsius);
+            const minVal = (res.minTemperatureCelsius !== undefined) ? res.minTemperatureCelsius : (res.minTemp !== undefined ? res.minTemp : res.temperatureCelsius);
+            if (maxVal > peakTemp) peakTemp = maxVal;
+            if (minVal < lowTemp) lowTemp = minVal;
             if (res.windSpeedKmh > maxWind) maxWind = res.windSpeedKmh;
             totalRain += res.rainfallMm;
         }
@@ -834,31 +842,128 @@
     // -------------------------------------------------------------------------
     // Current Weather & Real-Time Telemetry
     // -------------------------------------------------------------------------
+    function getWeatherSvg(cond, desc) {
+        const text = `${cond || ''} ${desc || ''}`.toLowerCase();
+        if (text.includes('thunder') || text.includes('lightning') || text.includes('storm')) {
+            return `
+                <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none">
+                    <path d="M22 38h24a10 10 0 0 0 3-19.5 14 14 0 0 0-26.6-3A10 10 0 0 0 22 38z" fill="#90A4AE" opacity="0.95"/>
+                    <path d="M30 36l-5 12h7l-3 10 11-14h-7l4-8z" fill="#FFD166" stroke="#F4A261" stroke-width="1.5"/>
+                </svg>
+            `;
+        }
+        if (text.includes('snow') || text.includes('ice') || text.includes('sleet') || text.includes('cold') || text.includes('blizzard') || text.includes('frost')) {
+            return `
+                <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="#2EC4B6" stroke-width="2.5" stroke-linecap="round">
+                    <line x1="32" y1="12" x2="32" y2="52"/>
+                    <line x1="12" y1="32" x2="52" y2="32"/>
+                    <line x1="18" y1="18" x2="46" y2="46"/>
+                    <line x1="18" y1="46" x2="46" y2="18"/>
+                    <circle cx="32" cy="32" r="4" fill="#E0FBFC"/>
+                </svg>
+            `;
+        }
+        if (text.includes('rain') || text.includes('drizzle') || text.includes('shower')) {
+            return `
+                <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none">
+                    <path d="M20 34h26a9 9 0 0 0 2.5-17.6 13 13 0 0 0-24.8-2.6A9 9 0 0 0 20 34z" fill="#78909C" opacity="0.95"/>
+                    <g stroke="#00A8E8" stroke-width="2.5" stroke-linecap="round">
+                        <line x1="22" y1="40" x2="19" y2="48"/>
+                        <line x1="32" y1="40" x2="29" y2="50"/>
+                        <line x1="42" y1="40" x2="39" y2="48"/>
+                    </g>
+                </svg>
+            `;
+        }
+        if (text.includes('cloud') || text.includes('overcast')) {
+            return `
+                <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none">
+                    <defs>
+                        <linearGradient id="cloudGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#E2E8F0"/>
+                            <stop offset="100%" stop-color="#94A3B8"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M19 40h28a11 11 0 0 0 3-21.5 15 15 0 0 0-28.6-3.2A11 11 0 0 0 19 40z" fill="url(#cloudGrad)"/>
+                </svg>
+            `;
+        }
+        if (text.includes('mist') || text.includes('fog') || text.includes('haze') || text.includes('smoke')) {
+            return `
+                <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="#64748B" stroke-width="3" stroke-linecap="round">
+                    <line x1="14" y1="22" x2="50" y2="22"/>
+                    <line x1="10" y1="32" x2="54" y2="32"/>
+                    <line x1="16" y1="42" x2="48" y2="42"/>
+                </svg>
+            `;
+        }
+        // Default Sunny / Clear
+        return `
+            <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none">
+                <circle cx="32" cy="32" r="14" fill="url(#sunGradLive)" stroke="#F4A261" stroke-width="2"/>
+                <g stroke="#E76F51" stroke-width="2.5" stroke-linecap="round">
+                    <line x1="32" y1="6" x2="32" y2="13"/>
+                    <line x1="32" y1="51" x2="32" y2="58"/>
+                    <line x1="6" y1="32" x2="13" y2="32"/>
+                    <line x1="51" y1="32" x2="58" y2="32"/>
+                    <line x1="13.6" y1="13.6" x2="18.5" y2="18.5"/>
+                    <line x1="45.5" y1="45.5" x2="50.4" y2="50.4"/>
+                    <line x1="13.6" y1="50.4" x2="18.5" y2="45.5"/>
+                    <line x1="45.5" y1="18.5" x2="50.4" y2="13.6"/>
+                </g>
+                <defs>
+                    <linearGradient id="sunGradLive" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#FFD166"/>
+                        <stop offset="100%" stop-color="#F4A261"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        `;
+    }
+
+    // -------------------------------------------------------------------------
+    // Current Weather & Real-Time Telemetry
+    // -------------------------------------------------------------------------
     function renderCurrentWeather(cw, city) {
         if (!elements.currentWeatherCard) return;
 
         if (state.mode === 'csv') {
             elements.currentWeatherCard.classList.remove('hidden');
-            if (elements.cwCityName) elements.cwCityName.textContent = state.activeTitle || 'Offline Dataset';
+            if (elements.cwEyebrowText) elements.cwEyebrowText.textContent = 'DATASET TELEMETRY // OFFLINE CSV SOURCE';
             if (elements.cwStreamIndicator) {
-                elements.cwStreamIndicator.textContent = 'CSV DATASET';
+                elements.cwStreamIndicator.textContent = 'OFFLINE CSV BENCHMARK';
                 elements.cwStreamIndicator.style.background = 'rgba(244, 162, 97, 0.16)';
                 elements.cwStreamIndicator.style.color = '#c56024';
+                elements.cwStreamIndicator.style.borderColor = 'rgba(244, 162, 97, 0.35)';
             }
-            if (elements.cwConditionMain) elements.cwConditionMain.textContent = 'Historical Records';
-            if (elements.cwConditionDesc) elements.cwConditionDesc.textContent = `${state.records.length} days analyzed for thresholds`;
-            if (elements.cwConditionIcon) elements.cwConditionIcon.src = 'https://openweathermap.org/img/wn/02d@2x.png';
-            if (state.records.length > 0) {
-                const latest = state.records[state.records.length - 1];
-                if (elements.cwTempVal) elements.cwTempVal.innerHTML = `${latest.temperatureCelsius.toFixed(1)}<span class="cw-temp-unit">°C</span>`;
-                if (elements.cwFeelsVal) elements.cwFeelsVal.textContent = `${latest.temperatureCelsius.toFixed(1)}°C`;
-                if (elements.cwHumidityVal) elements.cwHumidityVal.textContent = `${latest.rainfallMm.toFixed(0)} mm`;
-                if (elements.cwHumidityBar) elements.cwHumidityBar.style.width = `${Math.min(100, Math.max(5, latest.rainfallMm))}%`;
-                if (elements.cwWindVal) elements.cwWindVal.innerHTML = `${latest.windSpeedKmh.toFixed(1)} <span class="unit">km/h</span>`;
-                if (elements.cwWindDir) elements.cwWindDir.textContent = 'Day ' + latest.date;
-                if (elements.cwPressureVal) elements.cwPressureVal.innerHTML = `N/A <span class="unit">offline</span>`;
+            if (elements.cwCityName) elements.cwCityName.textContent = state.activeTitle || 'Offline Dataset (sample-weather.csv)';
+            if (elements.cwConditionMain) elements.cwConditionMain.textContent = 'Deterministic Rule Testing';
+            if (elements.cwIconContainer) {
+                elements.cwIconContainer.innerHTML = `
+                    <svg class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none">
+                        <rect x="12" y="10" width="40" height="44" rx="6" fill="#F8FAFC" stroke="#00A8E8" stroke-width="2.5"/>
+                        <line x1="20" y1="22" x2="44" y2="22" stroke="#00A8E8" stroke-width="2.5" stroke-linecap="round"/>
+                        <line x1="20" y1="32" x2="44" y2="32" stroke="#2EC4B6" stroke-width="2.5" stroke-linecap="round"/>
+                        <line x1="20" y1="42" x2="34" y2="42" stroke="#F4A261" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                `;
+            }
+            if (state.records && state.records.length > 0) {
                 const temps = state.records.map(r => r.temperatureCelsius);
-                if (elements.cwRangeVal) elements.cwRangeVal.textContent = `${Math.min(...temps).toFixed(0)}° / ${Math.max(...temps).toFixed(0)}°`;
+                const maxT = Math.max(...temps);
+                const minT = Math.min(...temps);
+                const avgT = temps.reduce((a, b) => a + b, 0) / temps.length;
+                const maxW = Math.max(...state.records.map(r => r.windSpeedKmh));
+                const totalR = state.records.reduce((a, b) => a + b.rainfallMm, 0);
+
+                if (elements.cwTempVal) elements.cwTempVal.innerHTML = `${avgT.toFixed(1)}<span class="cw-temp-unit">°C</span>`;
+                if (elements.cwFeelsVal) elements.cwFeelsVal.textContent = `Avg across ${state.records.length} Days`;
+                if (elements.cwHumidityVal) elements.cwHumidityVal.textContent = `${state.records.length} Days`;
+                if (elements.cwHumidityBar) elements.cwHumidityBar.style.width = '100%';
+                if (elements.cwWindVal) elements.cwWindVal.innerHTML = `${maxW.toFixed(1)} <span class="unit">km/h</span>`;
+                if (elements.cwWindDir) elements.cwWindDir.textContent = 'Peak anomaly trigger';
+                if (elements.cwPressureVal) elements.cwPressureVal.innerHTML = `${totalR.toFixed(1)} <span class="unit">mm</span>`;
+                if (elements.cwRangeVal) elements.cwRangeVal.textContent = `${minT.toFixed(1)}° / ${maxT.toFixed(1)}°`;
             }
             if (elements.cwUpdatedTime) elements.cwUpdatedTime.textContent = 'Dataset Loaded';
             return;
@@ -871,10 +976,12 @@
 
         elements.currentWeatherCard.classList.remove('hidden');
 
+        if (elements.cwEyebrowText) elements.cwEyebrowText.textContent = 'LIVE STATION TELEMETRY';
         if (elements.cwStreamIndicator) {
             elements.cwStreamIndicator.textContent = 'REAL-TIME STREAM ACTIVE';
-            elements.cwStreamIndicator.style.background = 'rgba(46, 196, 182, 0.14)';
-            elements.cwStreamIndicator.style.color = '#0b7285';
+            elements.cwStreamIndicator.style.background = 'rgba(16, 185, 129, 0.14)';
+            elements.cwStreamIndicator.style.color = '#065f46';
+            elements.cwStreamIndicator.style.borderColor = 'rgba(16, 185, 129, 0.28)';
         }
 
         const displayName = cw.cityName ? (cw.cityName + (cw.country ? ', ' + cw.country : '')) : (city || state.city);
@@ -888,17 +995,15 @@
             elements.cwFeelsVal.textContent = `${cw.feelsLikeCelsius.toFixed(1)}°C`;
         }
 
+        // Format clean capitalized condition text without duplicates (e.g. "Clear Sky")
+        let cleanCond = cw.description || cw.condition || 'Clear Sky';
+        cleanCond = cleanCond.replace(/\b\w/g, char => char.toUpperCase());
         if (elements.cwConditionMain) {
-            elements.cwConditionMain.textContent = cw.condition || 'Clear';
+            elements.cwConditionMain.textContent = cleanCond;
         }
 
-        if (elements.cwConditionDesc) {
-            elements.cwConditionDesc.textContent = cw.description || 'Current atmospheric conditions nominal';
-        }
-
-        if (elements.cwConditionIcon && cw.iconCode) {
-            elements.cwConditionIcon.src = `https://openweathermap.org/img/wn/${cw.iconCode}@2x.png`;
-            elements.cwConditionIcon.alt = cw.description || cw.condition;
+        if (elements.cwIconContainer) {
+            elements.cwIconContainer.innerHTML = getWeatherSvg(cw.condition, cw.description);
         }
 
         if (elements.cwHumidityVal) {
@@ -916,7 +1021,7 @@
         if (elements.cwWindDir) {
             const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
             const dirIndex = Math.round((cw.windDegree || 0) / 45) % 8;
-            elements.cwWindDir.textContent = `${directions[dirIndex]} (${cw.windDegree || 0}°)`;
+            elements.cwWindDir.textContent = `${directions[dirIndex]} · ${cw.windDegree || 0}°`;
         }
 
         if (elements.cwPressureVal) {
@@ -924,7 +1029,9 @@
         }
 
         if (elements.cwRangeVal) {
-            elements.cwRangeVal.textContent = `${cw.tempMinCelsius.toFixed(0)}° / ${cw.tempMaxCelsius.toFixed(0)}°`;
+            const minT = (cw.tempMinCelsius !== undefined && !isNaN(cw.tempMinCelsius)) ? cw.tempMinCelsius.toFixed(1) : '--';
+            const maxT = (cw.tempMaxCelsius !== undefined && !isNaN(cw.tempMaxCelsius)) ? cw.tempMaxCelsius.toFixed(1) : '--';
+            elements.cwRangeVal.textContent = `${minT}° / ${maxT}°`;
         }
 
         if (elements.cwUpdatedTime) {
@@ -937,6 +1044,7 @@
         if (!state.city || state.mode === 'csv') return;
         if (elements.btnRefreshCurrent) {
             elements.btnRefreshCurrent.disabled = true;
+            elements.btnRefreshCurrent.classList.add('syncing');
             const span = elements.btnRefreshCurrent.querySelector('span');
             if (span) span.textContent = 'Syncing...';
         }
@@ -957,11 +1065,13 @@
         } finally {
             if (elements.btnRefreshCurrent) {
                 elements.btnRefreshCurrent.disabled = false;
+                elements.btnRefreshCurrent.classList.remove('syncing');
                 const span = elements.btnRefreshCurrent.querySelector('span');
-                if (span) span.textContent = 'Sync Live';
+                if (span) span.textContent = '↻ Sync Live';
             }
         }
     }
+
 
     // -------------------------------------------------------------------------
     // City Autocomplete & Suggestions Engine
@@ -1120,6 +1230,8 @@
             state.records = data.results.map(r => ({
                 date: r.date,
                 temperatureCelsius: r.temperatureCelsius,
+                minTemperatureCelsius: r.minTemperatureCelsius !== undefined ? r.minTemperatureCelsius : r.temperatureCelsius,
+                maxTemperatureCelsius: r.maxTemperatureCelsius !== undefined ? r.maxTemperatureCelsius : r.temperatureCelsius,
                 rainfallMm: r.rainfallMm,
                 windSpeedKmh: r.windSpeedKmh
             }));
@@ -1168,6 +1280,8 @@
             state.records = data.results.map(r => ({
                 date: r.date,
                 temperatureCelsius: r.temperatureCelsius,
+                minTemperatureCelsius: r.minTemperatureCelsius !== undefined ? r.minTemperatureCelsius : r.temperatureCelsius,
+                maxTemperatureCelsius: r.maxTemperatureCelsius !== undefined ? r.maxTemperatureCelsius : r.temperatureCelsius,
                 rainfallMm: r.rainfallMm,
                 windSpeedKmh: r.windSpeedKmh
             }));
@@ -1213,6 +1327,8 @@
             state.records = data.results.map(r => ({
                 date: r.date,
                 temperatureCelsius: r.temperatureCelsius,
+                minTemperatureCelsius: r.minTemperatureCelsius !== undefined ? r.minTemperatureCelsius : r.temperatureCelsius,
+                maxTemperatureCelsius: r.maxTemperatureCelsius !== undefined ? r.maxTemperatureCelsius : r.temperatureCelsius,
                 rainfallMm: r.rainfallMm,
                 windSpeedKmh: r.windSpeedKmh
             }));
@@ -1385,6 +1501,58 @@
                 showToast('Please paste CSV data before submitting.', true);
             }
         });
+
+        // CSV Sandbox Presets
+        if (elements.btnPresetSample) {
+            elements.btnPresetSample.addEventListener('click', () => {
+                elements.csvPasteTextarea.value = `date,temperature,rainfall,windSpeed
+2026-06-01,29.0,4.0,12.0
+2026-06-02,30.5,8.0,15.0
+2026-06-03,43.2,2.0,18.0
+2026-06-04,31.0,125.0,22.0
+2026-06-05,26.0,10.0,92.0
+2026-06-06,12.0,0.0,16.0
+2026-06-07,-2.5,3.0,14.0
+2026-06-08,28.0,5.0,20.0`;
+            });
+        }
+        if (elements.btnPresetHeat) {
+            elements.btnPresetHeat.addEventListener('click', () => {
+                elements.csvPasteTextarea.value = `date,temperature,rainfall,windSpeed
+2026-07-01,32.0,0.0,10.0
+2026-07-02,35.0,0.0,12.0
+2026-07-03,44.5,0.0,14.0
+2026-07-04,45.2,0.0,15.0
+2026-07-05,33.0,5.0,18.0`;
+            });
+        }
+        if (elements.btnPresetDeluge) {
+            elements.btnPresetDeluge.addEventListener('click', () => {
+                elements.csvPasteTextarea.value = `date,temperature,rainfall,windSpeed
+2026-08-01,28.0,15.0,20.0
+2026-08-02,26.0,142.0,55.0
+2026-08-03,24.0,110.0,45.0
+2026-08-04,27.0,8.0,15.0`;
+            });
+        }
+        if (elements.btnPresetWind) {
+            elements.btnPresetWind.addEventListener('click', () => {
+                elements.csvPasteTextarea.value = `date,temperature,rainfall,windSpeed
+2026-09-01,25.0,5.0,30.0
+2026-09-02,23.0,20.0,98.0
+2026-09-03,24.0,8.0,85.0
+2026-09-04,26.0,0.0,22.0`;
+            });
+        }
+        if (elements.btnPresetFreeze) {
+            elements.btnPresetFreeze.addEventListener('click', () => {
+                elements.csvPasteTextarea.value = `date,temperature,rainfall,windSpeed
+2026-01-10,4.0,2.0,15.0
+2026-01-11,-5.5,8.0,25.0
+2026-01-12,-8.0,12.0,30.0
+2026-01-13,6.0,0.0,10.0`;
+            });
+        }
 
         // Sliders Real-Time Binding
         const bindSlider = (key, sliderEl, labelEl) => {

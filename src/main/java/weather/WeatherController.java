@@ -73,7 +73,19 @@ public class WeatherController {
                     .body(Map.of("error", "API key required. Set OPENWEATHER_API_KEY in .env or provide apiKey param."));
         }
         try {
-            CurrentWeather cw = new OpenWeatherMapForecastReader().readCurrentWeather(city.trim(), key);
+            OpenWeatherMapForecastReader reader = new OpenWeatherMapForecastReader();
+            CurrentWeather cw = reader.readCurrentWeather(city.trim(), key);
+            try {
+                List<WeatherRecord> forecast = reader.readForecast(city.trim(), key);
+                if (!forecast.isEmpty()) {
+                    WeatherRecord today = forecast.get(0);
+                    double minT = Math.min(cw.getTempMinCelsius(), today.getMinTemperatureCelsius());
+                    double maxT = Math.max(cw.getTempMaxCelsius(), today.getMaxTemperatureCelsius());
+                    minT = Math.min(minT, cw.getTemperatureCelsius());
+                    maxT = Math.max(maxT, cw.getTemperatureCelsius());
+                    cw = cw.withRange(minT, maxT);
+                }
+            } catch (Exception ignored) {}
             return ResponseEntity.ok(cw);
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
@@ -127,6 +139,14 @@ public class WeatherController {
             CurrentWeather currentWeather = null;
             try {
                 currentWeather = reader.readCurrentWeather(city.trim(), key);
+                if (currentWeather != null && !records.isEmpty()) {
+                    WeatherRecord today = records.get(0);
+                    double minT = Math.min(currentWeather.getTempMinCelsius(), today.getMinTemperatureCelsius());
+                    double maxT = Math.max(currentWeather.getTempMaxCelsius(), today.getMaxTemperatureCelsius());
+                    minT = Math.min(minT, currentWeather.getTemperatureCelsius());
+                    maxT = Math.max(maxT, currentWeather.getTemperatureCelsius());
+                    currentWeather = currentWeather.withRange(minT, maxT);
+                }
             } catch (Exception ignored) {
                 // If current weather fails, continue gracefully with forecast
             }
@@ -197,8 +217,8 @@ public class WeatherController {
         for (DetectionResult dr : results) {
             if (dr.hasAnomalies()) anomalyDays++;
             WeatherRecord wr = dr.getRecord();
-            if (wr.getTemperatureCelsius() > peak) peak = wr.getTemperatureCelsius();
-            if (wr.getTemperatureCelsius() < low) low = wr.getTemperatureCelsius();
+            if (wr.getMaxTemperatureCelsius() > peak) peak = wr.getMaxTemperatureCelsius();
+            if (wr.getMinTemperatureCelsius() < low) low = wr.getMinTemperatureCelsius();
             if (wr.getWindSpeedKmh() > maxWind) maxWind = wr.getWindSpeedKmh();
             totalRain += wr.getRainfallMm();
 
@@ -207,15 +227,22 @@ public class WeatherController {
                 anomalyList.add(Map.of("type", a.getType(), "explanation", a.getExplanation()));
             }
 
-            rows.add(Map.of(
-                "date", wr.getDate().toString(),
-                "temperatureCelsius", wr.getTemperatureCelsius(),
-                "rainfallMm", wr.getRainfallMm(),
-                "windSpeedKmh", wr.getWindSpeedKmh(),
-                "hasAnomalies", dr.hasAnomalies(),
-                "status", dr.hasAnomalies() ? "Anomaly" : "Normal",
-                "anomalies", anomalyList
-            ));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", wr.getDate().toString());
+            row.put("temperatureCelsius", wr.getTemperatureCelsius());
+            row.put("minTemperatureCelsius", wr.getMinTemperatureCelsius());
+            row.put("maxTemperatureCelsius", wr.getMaxTemperatureCelsius());
+            row.put("minTemp", wr.getMinTemperatureCelsius());
+            row.put("maxTemp", wr.getMaxTemperatureCelsius());
+            row.put("avgTemp", wr.getTemperatureCelsius());
+            row.put("rainfallMm", wr.getRainfallMm());
+            row.put("rainfall", wr.getRainfallMm());
+            row.put("windSpeedKmh", wr.getWindSpeedKmh());
+            row.put("windSpeed", wr.getWindSpeedKmh());
+            row.put("hasAnomalies", dr.hasAnomalies());
+            row.put("status", dr.hasAnomalies() ? "Anomaly" : "Normal");
+            row.put("anomalies", anomalyList);
+            rows.add(row);
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -228,6 +255,7 @@ public class WeatherController {
         }
         return response;
     }
+
 
     private List<Map<String, String>> filterCuratedCities(String query) {
         if (query == null || query.trim().isEmpty()) {

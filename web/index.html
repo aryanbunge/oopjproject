@@ -108,37 +108,53 @@
 
             <!-- CSV Mode Controls -->
             <div class="controls-group hidden" id="csv-controls">
-                <div class="csv-actions">
-                    <button type="button" class="action-btn primary-action" id="btn-load-sample">
+                <div class="csv-guide-banner">
+                    <div class="csv-guide-icon">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                    </div>
+                    <div class="csv-guide-content">
+                        <div class="csv-guide-title">OFFLINE CSV DATASET MODE // DETERMINISTIC BENCHMARK</div>
+                        <div class="csv-guide-desc">
+                            <strong>Purpose:</strong> Allows deterministic offline testing of all 5 anomaly rules (<em>High temp, Low temp, Heavy rainfall, Strong wind, Sudden daily jump</em>) without requiring internet or an OpenWeather API key.
+                        </div>
+                        <div class="csv-guide-schema">
+                            <strong>Required Schema:</strong> <code>date,temperature,rainfall,windSpeed</code> (ISO <code>YYYY-MM-DD</code>, <code>°C</code>, <code>mm</code>, <code>km/h</code>).
+                        </div>
+                    </div>
+                </div>
+
+                <div class="csv-actions-bar">
+                    <button type="button" class="action-btn primary-action" id="btn-load-sample" title="Load built-in 8-day benchmark dataset">
                         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                             <polyline points="14 2 14 8 20 8"/>
                             <line x1="16" y1="13" x2="8" y2="13"/>
                             <line x1="16" y1="17" x2="8" y2="17"/>
                         </svg>
-                        <span>Load sample-weather.csv</span>
+                        <span>Load Built-in sample-weather.csv</span>
                     </button>
 
-                    <label class="action-btn secondary-action" for="csv-file-input">
+                    <label class="action-btn secondary-action" for="csv-file-input" title="Upload local .csv file">
                         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                             <polyline points="17 8 12 3 7 8"/>
                             <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
-                        <span>Upload CSV</span>
+                        <span>Upload .csv File</span>
                         <input type="file" id="csv-file-input" accept=".csv,text/csv" class="visually-hidden">
                     </label>
 
-                    <button type="button" class="action-btn tertiary-action" id="btn-open-paste-modal">
+                    <button type="button" class="action-btn tertiary-action" id="btn-open-paste-modal" title="Open interactive CSV editor">
                         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
                         </svg>
-                        <span>Paste CSV Data</span>
+                        <span>Interactive CSV Editor</span>
                     </button>
-                </div>
-                <div class="csv-format-spec">
-                    Columns: <code>date, temperature, rainfall, windSpeed</code>
                 </div>
             </div>
         </section>
@@ -151,78 +167,102 @@
                 
                 <!-- Live Current Weather Station Card -->
                 <article class="current-weather-card glass-panel" id="current-weather-card">
-                    <div class="cw-header">
-                        <div class="cw-location-wrap">
-                            <div class="cw-station-pulse">
-                                <span class="dot-live"></span>
-                                <span class="cw-badge-text">LIVE STATION TELEMETRY</span>
-                                <span class="cw-stream-indicator" id="cw-stream-indicator">REAL-TIME STREAM ACTIVE</span>
-                            </div>
-                            <h2 class="cw-city-title" id="cw-city-name">London, GB</h2>
-                            <div class="cw-timestamp-row">
+                    <!-- 1. Card Header Row (Flexbox Space-Between) -->
+                    <div class="cw-header-row">
+                        <div class="cw-header-left">
+                            <span class="dot-live"></span>
+                            <span class="cw-eyebrow" id="cw-eyebrow-text">LIVE STATION TELEMETRY</span>
+                            <span class="cw-stream-pill" id="cw-stream-indicator">REAL-TIME STREAM ACTIVE</span>
+                        </div>
+                        <div class="cw-header-right">
+                            <div class="cw-time-wrap">
                                 <span class="cw-time-label">Observation Recorded:</span>
                                 <time id="cw-updated-time">Today, 01:10 UTC</time>
-                                <button type="button" class="cw-refresh-btn" id="btn-refresh-current" title="Refresh live weather">
-                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
-                                        <path d="M23 4v6h-6M1 20v-6h6"/>
-                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                                    </svg>
-                                    <span>Sync Live</span>
-                                </button>
                             </div>
-                        </div>
-
-                        <div class="cw-condition-badge" id="cw-condition-badge">
-                            <img id="cw-condition-icon" src="https://openweathermap.org/img/wn/03n@2x.png" alt="Weather condition" class="cw-icon-img" width="48" height="48">
-                            <div class="cw-condition-text-group">
-                                <span class="cw-condition-main" id="cw-condition-main">Scattered Clouds</span>
-                                <span class="cw-condition-desc" id="cw-condition-desc">scattered clouds across station</span>
-                            </div>
+                            <button type="button" class="cw-refresh-btn" id="btn-refresh-current" title="Refresh live telemetry stream">
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" class="cw-sync-icon">
+                                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                </svg>
+                                <span>↻ Sync Live</span>
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Metrics Row -->
-                    <div class="cw-body">
-                        <div class="cw-hero-temp">
-                            <div class="cw-temp-value font-serif" id="cw-temp-val">12.6<span class="cw-temp-unit">°C</span></div>
-                            <div class="cw-feels-like">Feels like <strong id="cw-feels-val">12.2°C</strong></div>
+                    <!-- 2. Hero Weather Readout (2-Column Asymmetric Split) -->
+                    <div class="cw-hero-split">
+                        <!-- Left Hero Column -->
+                        <div class="cw-hero-left">
+                            <h2 class="cw-city-title font-serif" id="cw-city-name">Mumbai, IN</h2>
+                            <div class="cw-hero-temp-row">
+                                <div class="cw-hero-temp font-serif" id="cw-temp-val">28.5<span class="cw-temp-unit">°C</span></div>
+                                <div class="cw-icon-container" id="cw-icon-container">
+                                    <!-- Crisp bespoke SVG weather icon -->
+                                    <svg id="cw-svg-icon" class="cw-weather-svg" viewBox="0 0 64 64" width="56" height="56" fill="none">
+                                        <circle cx="32" cy="32" r="14" fill="url(#sunGrad)" stroke="#F4A261" stroke-width="2"/>
+                                        <g stroke="#E76F51" stroke-width="2.5" stroke-linecap="round">
+                                            <line x1="32" y1="6" x2="32" y2="13"/>
+                                            <line x1="32" y1="51" x2="32" y2="58"/>
+                                            <line x1="6" y1="32" x2="13" y2="32"/>
+                                            <line x1="51" y1="32" x2="58" y2="32"/>
+                                            <line x1="13.6" y1="13.6" x2="18.5" y2="18.5"/>
+                                            <line x1="45.5" y1="45.5" x2="50.4" y2="50.4"/>
+                                            <line x1="13.6" y1="50.4" x2="18.5" y2="45.5"/>
+                                            <line x1="45.5" y1="18.5" x2="50.4" y2="13.6"/>
+                                        </g>
+                                        <defs>
+                                            <linearGradient id="sunGrad" x1="0" y1="0" x2="1" y2="1">
+                                                <stop offset="0%" stop-color="#FFD166"/>
+                                                <stop offset="100%" stop-color="#F4A261"/>
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="cw-condition-meta">
+                                <span class="cw-condition-title" id="cw-condition-main">Clear Sky</span>
+                                <span class="cw-feels-pill">Feels like <strong id="cw-feels-val">29.7°C</strong></span>
+                            </div>
                         </div>
 
-                        <div class="cw-stats-grid">
-                            <div class="cw-stat-tile">
-                                <div class="cw-stat-label">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                        <!-- Right Sub-Grid (2x2 Bento Metric Tiles) -->
+                        <div class="cw-bento-grid">
+                            <div class="cw-bento-tile">
+                                <div class="bento-label">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
                                     <span>HUMIDITY</span>
                                 </div>
-                                <div class="cw-stat-val font-serif" id="cw-humidity-val">85%</div>
-                                <div class="cw-stat-bar-track"><div class="cw-stat-bar-fill" id="cw-humidity-bar" style="width: 85%;"></div></div>
+                                <div class="bento-val font-serif" id="cw-humidity-val">56%</div>
+                                <div class="bento-bar-track">
+                                    <div class="bento-bar-fill" id="cw-humidity-bar" style="width: 56%;"></div>
+                                </div>
                             </div>
 
-                            <div class="cw-stat-tile">
-                                <div class="cw-stat-label">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+                            <div class="cw-bento-tile">
+                                <div class="bento-label">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
                                     <span>WIND VELOCITY</span>
                                 </div>
-                                <div class="cw-stat-val font-serif" id="cw-wind-val">9.8 <span class="unit">km/h</span></div>
-                                <div class="cw-stat-sub" id="cw-wind-dir">SW (231°)</div>
+                                <div class="bento-val font-serif" id="cw-wind-val">17.0 <span class="unit">km/h</span></div>
+                                <div class="bento-sub" id="cw-wind-dir">NE · 52°</div>
                             </div>
 
-                            <div class="cw-stat-tile">
-                                <div class="cw-stat-label">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                            <div class="cw-bento-tile">
+                                <div class="bento-label">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                                     <span>BAROMETER</span>
                                 </div>
-                                <div class="cw-stat-val font-serif" id="cw-pressure-val">1027 <span class="unit">hPa</span></div>
-                                <div class="cw-stat-sub">Sea-level pressure</div>
+                                <div class="bento-val font-serif" id="cw-pressure-val">1008 <span class="unit">hPa</span></div>
+                                <div class="bento-sub">Sea-level pressure</div>
                             </div>
 
-                            <div class="cw-stat-tile">
-                                <div class="cw-stat-label">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+                            <div class="cw-bento-tile">
+                                <div class="bento-label">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
                                     <span>TODAY'S RANGE</span>
                                 </div>
-                                <div class="cw-stat-val font-serif" id="cw-range-val">11° / 14°</div>
-                                <div class="cw-stat-sub">Min / Max Recorded</div>
+                                <div class="bento-val font-serif" id="cw-range-val">26.4° / 32.1°</div>
+                                <div class="bento-sub">Intraday Low / High</div>
                             </div>
                         </div>
                     </div>
@@ -472,29 +512,41 @@
 
     </div>
 
-    <!-- Paste CSV Modal -->
+    <!-- Paste CSV Modal (Interactive CSV Editor & Sandbox) -->
     <div class="modal-overlay hidden" id="csv-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-card glass-panel">
             <div class="modal-header">
                 <div>
-                    <div class="card-subtitle">CUSTOM DATA</div>
-                    <h3 class="card-title" id="modal-title">Paste Weather CSV</h3>
+                    <div class="card-subtitle">INTERACTIVE CSV EDITOR // ANOMALY SANDBOX</div>
+                    <h3 class="card-title" id="modal-title">Custom Weather Dataset</h3>
                 </div>
                 <button type="button" class="close-btn" id="btn-close-modal" aria-label="Close dialog">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="modal-presets-row">
+                    <span class="preset-label">Load Edge Case:</span>
+                    <button type="button" class="chip chip-action" id="btn-preset-sample">Built-in Sample</button>
+                    <button type="button" class="chip chip-action" id="btn-preset-heat">Heatwave (+44°C)</button>
+                    <button type="button" class="chip chip-action" id="btn-preset-deluge">Deluge (140mm)</button>
+                    <button type="button" class="chip chip-action" id="btn-preset-wind">Gale (95km/h)</button>
+                    <button type="button" class="chip chip-action" id="btn-preset-freeze">Cold Snap (-5°C)</button>
+                </div>
                 <p class="modal-desc">
-                    Paste rows separated by commas. Required format: <code>date,temperature,rainfall,windSpeed</code>.
+                    Required format: <code>date,temperature,rainfall,windSpeed</code> (ISO <code>YYYY-MM-DD</code>, <code>°C</code>, <code>mm</code>, <code>km/h</code>).
                 </p>
-                <textarea id="csv-paste-textarea" rows="8" spellcheck="false" placeholder="date,temperature,rainfall,windSpeed
+                <textarea id="csv-paste-textarea" rows="9" spellcheck="false" placeholder="date,temperature,rainfall,windSpeed
 2026-06-01,29.0,4.0,12.0
 2026-06-02,30.5,8.0,15.0
 2026-06-03,43.2,2.0,18.0
-2026-06-04,31.0,125.0,22.0"></textarea>
+2026-06-04,31.0,125.0,22.0
+2026-06-05,26.0,10.0,92.0
+2026-06-06,12.0,0.0,16.0
+2026-06-07,-2.5,3.0,14.0
+2026-06-08,28.0,5.0,20.0"></textarea>
             </div>
             <div class="modal-footer">
                 <button type="button" class="action-btn secondary-action" id="btn-modal-cancel">Cancel</button>
-                <button type="button" class="action-btn primary-action" id="btn-modal-submit">Run Detection</button>
+                <button type="button" class="action-btn primary-action" id="btn-modal-submit">Run Anomaly Detection</button>
             </div>
         </div>
     </div>

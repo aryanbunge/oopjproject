@@ -98,4 +98,10 @@ public class CurrentWeather {
     public Instant getTimestamp() {
         return timestamp;
     }
+
+    public CurrentWeather withRange(double min, double max) {
+        return new CurrentWeather(cityName, country, temperatureCelsius, feelsLikeCelsius,
+                min, max, humidityPercent, windSpeedKmh, windDegree, pressureHpa,
+                condition, description, iconCode, timestamp);
+    }
 }

@@ -26,11 +26,13 @@ public class AnomalyDetector {
         for (WeatherRecord record : records) {
             DetectionResult result = new DetectionResult(record);
             double temperature = record.getTemperatureCelsius();
-            if (temperature > maxTemperatureC) {
-                result.addAnomaly(new Anomaly("High temperature", String.format("%.1f°C is above %.1f°C", temperature, maxTemperatureC)));
+            double maxTemp = record.getMaxTemperatureCelsius();
+            if (maxTemp > maxTemperatureC) {
+                result.addAnomaly(new Anomaly("High temperature", String.format("%.1f°C is above %.1f°C", maxTemp, maxTemperatureC)));
             }
-            if (temperature < minTemperatureC) {
-                result.addAnomaly(new Anomaly("Low temperature", String.format("%.1f°C is below %.1f°C", temperature, minTemperatureC)));
+            double minTemp = record.getMinTemperatureCelsius();
+            if (minTemp < minTemperatureC) {
+                result.addAnomaly(new Anomaly("Low temperature", String.format("%.1f°C is below %.1f°C", minTemp, minTemperatureC)));
             }
             if (record.getRainfallMm() > maxRainfallMm) {
                 result.addAnomaly(new Anomaly("Heavy rainfall", String.format("%.1f mm is above %.1f mm", record.getRainfallMm(), maxRainfallMm)));

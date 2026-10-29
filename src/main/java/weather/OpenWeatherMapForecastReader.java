@@ -183,8 +183,10 @@ public class OpenWeatherMapForecastReader {
         List<WeatherRecord> records = new ArrayList<>();
         for (Map.Entry<LocalDate, DailyValues> day : days.entrySet()) {
             DailyValues values = day.getValue();
-            records.add(new WeatherRecord(day.getKey(), values.temperatureSum / values.count,
-                    values.rainfallSum, values.maxWindSpeed));
+            double avgTemp = values.count > 0 ? values.temperatureSum / values.count : 0.0;
+            double minTemp = values.minTemperature != Double.POSITIVE_INFINITY ? values.minTemperature : avgTemp;
+            double maxTemp = values.maxTemperature != Double.NEGATIVE_INFINITY ? values.maxTemperature : avgTemp;
+            records.add(new WeatherRecord(day.getKey(), avgTemp, values.rainfallSum, values.maxWindSpeed, minTemp, maxTemp));
         }
         return records;
     }
@@ -197,14 +199,26 @@ public class OpenWeatherMapForecastReader {
         try {
             LocalDate date = Instant.parse(dateText.replace(" ", "T") + "Z").atZone(ZoneOffset.UTC).toLocalDate();
             double temperature = numberValue(mainObject, "temp", true);
-            double wind = numberValue(windObject, "speed", true);
+            double tempMin = numberValue(mainObject, "temp_min", false);
+            double tempMax = numberValue(mainObject, "temp_max", false);
+            double slotMin = (tempMin != 0.0 || mainObject.contains("\"temp_min\"")) ? tempMin : temperature;
+            double slotMax = (tempMax != 0.0 || mainObject.contains("\"temp_max\"")) ? tempMax : temperature;
+            slotMin = Math.min(slotMin, temperature);
+            slotMax = Math.max(slotMax, temperature);
+
+            double windSpeedMs = numberValue(windObject, "speed", true);
+            double windSpeedKmh = windSpeedMs * 3.6;
+
             String rainObject = objectValue(entry, "rain");
             double rain = rainObject == null ? 0.0 : numberValue(rainObject, "3h", false);
+
             DailyValues values = days.computeIfAbsent(date, ignored -> new DailyValues());
             values.temperatureSum += temperature;
             values.count++;
+            values.minTemperature = Math.min(values.minTemperature, slotMin);
+            values.maxTemperature = Math.max(values.maxTemperature, slotMax);
             values.rainfallSum += rain;
-            values.maxWindSpeed = Math.max(values.maxWindSpeed, wind);
+            values.maxWindSpeed = Math.max(values.maxWindSpeed, windSpeedKmh);
         } catch (RuntimeException exception) {
             throw new IOException("Could not parse a forecast entry: " + exception.getMessage(), exception);
         }
@@ -271,5 +285,7 @@ public class OpenWeatherMapForecastReader {
         private int count;
         private double rainfallSum;
         private double maxWindSpeed;
+        private double minTemperature = Double.POSITIVE_INFINITY;
+        private double maxTemperature = Double.NEGATIVE_INFINITY;
     }
 }

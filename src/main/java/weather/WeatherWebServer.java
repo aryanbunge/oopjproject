@@ -383,9 +383,10 @@ public class WeatherWebServer {
         for (DetectionResult r : results) {
             if (r.hasAnomalies()) anomalyDays++;
             WeatherRecord rec = r.getRecord();
-            double temp = rec.getTemperatureCelsius();
-            if (temp > peakTemp) peakTemp = temp;
-            if (temp < lowestTemp) lowestTemp = temp;
+            double tempMax = rec.getMaxTemperatureCelsius();
+            double tempMin = rec.getMinTemperatureCelsius();
+            if (tempMax > peakTemp) peakTemp = tempMax;
+            if (tempMin < lowestTemp) lowestTemp = tempMin;
             if (rec.getWindSpeedKmh() > maxWind) maxWind = rec.getWindSpeedKmh();
             totalRain += rec.getRainfallMm();
         }
@@ -408,10 +409,10 @@ public class WeatherWebServer {
         sb.append("  \"summary\": {\n");
         sb.append("    \"totalDays\": ").append(results.size()).append(",\n");
         sb.append("    \"anomalyDays\": ").append(anomalyDays).append(",\n");
-        sb.append("    \"peakTemperatureC\": ").append(String.format("%.1f", peakTemp)).append(",\n");
-        sb.append("    \"lowestTemperatureC\": ").append(String.format("%.1f", lowestTemp)).append(",\n");
-        sb.append("    \"maxWindSpeedKmh\": ").append(String.format("%.1f", maxWind)).append(",\n");
-        sb.append("    \"totalRainfallMm\": ").append(String.format("%.1f", totalRain)).append("\n");
+        sb.append("    \"peakTemperatureC\": \"").append(String.format("%.1f", peakTemp)).append("\",\n");
+        sb.append("    \"lowestTemperatureC\": \"").append(String.format("%.1f", lowestTemp)).append("\",\n");
+        sb.append("    \"maxWindSpeedKmh\": \"").append(String.format("%.1f", maxWind)).append("\",\n");
+        sb.append("    \"totalRainfallMm\": \"").append(String.format("%.1f", totalRain)).append("\"\n");
         sb.append("  },\n");
         sb.append("  \"results\": [\n");
 
@@ -422,10 +423,17 @@ public class WeatherWebServer {
             sb.append("    {\n");
             sb.append("      \"date\": \"").append(record.getDate()).append("\",\n");
             sb.append("      \"temperatureCelsius\": ").append(record.getTemperatureCelsius()).append(",\n");
+            sb.append("      \"minTemperatureCelsius\": ").append(record.getMinTemperatureCelsius()).append(",\n");
+            sb.append("      \"maxTemperatureCelsius\": ").append(record.getMaxTemperatureCelsius()).append(",\n");
+            sb.append("      \"minTemp\": ").append(record.getMinTemperatureCelsius()).append(",\n");
+            sb.append("      \"maxTemp\": ").append(record.getMaxTemperatureCelsius()).append(",\n");
+            sb.append("      \"avgTemp\": ").append(record.getTemperatureCelsius()).append(",\n");
             sb.append("      \"rainfallMm\": ").append(record.getRainfallMm()).append(",\n");
+            sb.append("      \"rainfall\": ").append(record.getRainfallMm()).append(",\n");
             sb.append("      \"windSpeedKmh\": ").append(record.getWindSpeedKmh()).append(",\n");
+            sb.append("      \"windSpeed\": ").append(record.getWindSpeedKmh()).append(",\n");
             sb.append("      \"hasAnomalies\": ").append(result.hasAnomalies()).append(",\n");
-            sb.append("      \"status\": \"").append(result.hasAnomalies() ? "ANOMALY" : "NOMINAL").append("\",\n");
+            sb.append("      \"status\": \"").append(result.hasAnomalies() ? "Anomaly" : "Normal").append("\",\n");
             sb.append("      \"anomalies\": [\n");
 
             List<Anomaly> anomalies = result.getAnomalies();
